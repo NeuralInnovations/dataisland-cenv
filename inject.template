@@ -1,0 +1,3 @@
+ENV_1=hello
+ENV_2=op://Env/$APP_ENV/OpenAI/Temperature
+ENV_3=cenv://Env/dev1/Elastic/Url
