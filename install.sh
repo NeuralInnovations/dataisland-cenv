@@ -1,84 +1,70 @@
 #!/bin/bash
 
-REPO="NeuralInnovations/dataisland-cenv"
-BINARY_NAME="cenv_linux"
-INSTALL_DIR="~/"
+# Set the repository owner and name
+OWNER="NeuralInnovations"
+REPOSITORY="dataisland-cenv"
 
-# Fetch the latest release download URL for the binary
-get_latest_release_asset_id() {
-    response=$(curl -s \
-    -H "Accept: application/vnd.github+json" \
-    -H "X-GitHub-Api-Version: 2022-11-28" \
-    -L https://api.github.com/repos/$REPO/releases/latest)
+# Determine the current platform
+platform=""
+if [[ "$OSTYPE" == "linux-gnu"* ]]; then
+    platform="linux"
+    install_dir="/usr/local/bin"
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    platform="macos"
+    install_dir="/usr/local/bin"
+elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* || "$OSTYPE" == "win32" ]]; then
+    platform="windows"
+    install_dir="$HOME/bin"
+else
+    echo "Unsupported platform: $OSTYPE"
+    exit 1
+fi
 
-    if  [[ $(echo "$response" | grep -i "Not Found") ]]; then
-        echo "Error: Unable to access the repository or no releases found. Please check the repository or token."
-        exit 1
-    fi
-    # echo "$response"
+# Get the latest release information using GitHub API
+release_info=$(curl -s "https://api.github.com/repos/$OWNER/$REPOSITORY/releases/latest")
 
-    # Extract the asset download URL
-    ASSET_BLOCK=$(echo "$reponse" | grep -A 10 '"name": "$BINARY_NAME"')
-    ASSET_ID=$(echo "$ASSET_BLOCK" | grep '"id":' | awk '{print $2}' | sed 's/,//')
-    echo "Asset id: $ASSET_ID"
+# Determine the filename for the current platform
+filename="cenv_$platform"
 
-    if [[ -z "$ASSET_ID"  ]]; then
-        echo "Error: Unable to find a release asset ID."
-        exit 1
-    fi
+# Extract the download URL for the specific platform binary
+download_url=$(echo "$release_info" | grep "browser_download_url" | grep "$filename" | cut -d '"' -f 4)
 
-    echo $ASSET_ID
-}
+# Check if the download URL was found
+if [[ -z "$download_url" ]]; then
+    echo "Download URL for platform $platform not found."
+    exit 1
+fi
 
-# Function to down load the release asset using the asset ID
-download_binary() {
-    ASSET_ID=$(get_latest_release_asset_id)
+# Download the binary
+echo "Downloading $filename..."
+curl -L -o cenv "$download_url"
 
-    echo "Downloading $BINARY_NAME (Asset ID: $ASSET_ID) from the private repo..."
+# Make the binary executable (skipped on Windows)
+if [[ "$platform" != "windows" ]]; then
+    chmod +x cenv
+fi
 
-    # GitHub API URL to download the asset
-    ASSET_URL="https://api.github.com/repos/$REPO/releases/assets/$ASSET_ID"
+# Create the install directory if it doesn't exist (for Windows)
+if [[ "$platform" == "windows" && ! -d "$install_dir" ]]; then
+    mkdir -p "$install_dir"
+fi
 
-    # Download the asset using the GitHub API
-    curl -s -L \
-        -H "Accept: application/octet-stream" \
-        -H "X-GitHub-Api-Version: 2022-11-28" \
-        $ASSET_URL -o $BINARY_NAME
+# Move the binary to the install directory
+echo "Installing to $install_dir..."
+if [[ "$platform" == "windows" ]]; then
+    mv cenv "$install_dir/cenv.exe"
+else
+    sudo mv cenv "$install_dir/cenv"
+fi
 
-    if [[ $? -ne 0 ]]; then
-        echo "Error: Failed to download the binary."
-        exit 1
-    fi
-}
-
-# Make the binary executable and move it to the install directory
-install_binary() {
-    echo "Make the binary executable..."
-    chmod +x $BINARY_NAME
-
-    echo "Installing the binary to $INSTALL_DIR..."
-    sudo mv $BINARY_NAME "$INSTALL_DIR/$BINARY_NAME"
-    
-    if [[ $? -ne 0 ]]; then
-        echo "Error: Installation failed."
-        exit 1
-    fi
-}
-
-# Update system PATH if not already present
-update_path() {
-    if [[ ":$PATH" != *":$INSTALL_DIR:"* ]]; then
-        echo "Adding $INSTALL_DIR to your PATH..."
-        echo "export PATH=\$PATH:$INSTALL_DIR" >> ~/.bashrc
+# Add the directory to PATH (for Windows) if it's not already
+if [[ "$platform" == "windows" ]]; then
+    if [[ ":$PATH:" != *":$install_dir:"* ]]; then
+        echo "Adding $install_dir to PATH in .bashrc..."
+        echo "export PATH=\$PATH:$install_dir" >> ~/.bashrc
+        # Reload .bashrc to update PATH in the current session
         source ~/.bashrc
-    else
-        echo "PATH already includes $INSTALL_DIR"
     fi
-}
+fi
 
-# Main script flow execution
-download_binary
-install_binary
-update_path
-
-echo "Installation completed!"
+echo "Installation complete. You can now use 'cenv'."
