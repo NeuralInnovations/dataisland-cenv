@@ -2,6 +2,7 @@ import argparse
 import base64
 import json
 import os
+import configparser
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -10,6 +11,16 @@ from googleapiclient.errors import HttpError
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# Initialize the parser
+projectProperties = configparser.ConfigParser()
+
+# Read the properties file
+projectProperties.read('project.properties')
+
+# Access the properties
+project_name = projectProperties['DEFAULT']['name']
+project_version = projectProperties['DEFAULT']['version']
 
 
 class Configs:
@@ -193,10 +204,12 @@ def inject_command(template_path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="""Manage and search Google Sheets data.
+        description=f"""Manage and search Google Sheets data.
+        {project_name} {project_version}
         Environment variables: GOOGLE_CREDENTIAL_BASE64, GOOGLE_SHEET_ID, CONFIG_FILE"""
     )
     parser.add_help = True
+    parser.add_argument("--version", action="version", version=f"{project_version}")
     parser.add_argument("--google_credential_base64", required=False,
                         help="Base64 encoded Google service account credentials or use GOOGLE_CREDENTIAL_BASE64 environment variable")
     parser.add_argument("--google_sheet_id", required=False,
@@ -207,6 +220,10 @@ def main():
                         help="Local file to save the Google Sheets data or use CONFIG_FILE environment variable")
 
     subparsers = parser.add_subparsers(dest="command")
+
+    # Version command
+    version_parser = subparsers.add_parser("version", help="Show the version of the tool")
+
     # Load command
     load_parser = subparsers.add_parser("load", help="Load data from Google Sheets and save it locally")
     load_parser.add_argument("--env", type=str, required=True, help="Environment to download")
@@ -257,6 +274,8 @@ def main():
     elif args.command == "inject":
         result = inject_command(args.template_path)
         print(result)
+    elif args.command == "version":
+        print(f"{project_version}")
 
 
 if __name__ == "__main__":
