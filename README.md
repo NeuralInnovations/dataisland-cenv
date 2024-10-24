@@ -29,11 +29,11 @@ CONFIG_FILE=config.json
 For usage, you can enter a command like this:
 ```bash
 # load the config file
-python cenv.py load
+cenv load
 
 # find the environment
-python cenv.py find --sheet Env --env dev1 --category Elastic --name Url
+cenv find --sheet Env --env dev1 --category Elastic --name Url
 
 # delete the config file
-python cenv.py delete
+cenv delete
 ```
