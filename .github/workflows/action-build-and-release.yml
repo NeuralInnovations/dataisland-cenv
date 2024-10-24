@@ -2,6 +2,9 @@ name: Build and Upload Binary
 on:
   workflow_call:
     inputs:
+      file:
+        required: true
+        type: string
       ext:
         required: true
         type: string
@@ -15,7 +18,7 @@ on:
 jobs:
   build:
     name: 🧱 Build 🧱
-    runs-on: ${{inputs.os}}
+    runs-on: ${{ inputs.os }}
 
     steps:
       # -----------------------------------------------------------
@@ -23,7 +26,7 @@ jobs:
       # -----------------------------------------------------------
       - name: 📋 Info 📋
         run: |
-          echo "Running for ${{inputs.os-short}}"
+          echo "Running for ${{ inputs.os-short }}"
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -41,12 +44,13 @@ jobs:
       - name: Build binary with PyInstaller
         run: |
           pyinstaller cenv.spec
+          mv dist/cenv${{inputs.ext}} dist/${{ inputs.file }}
 
       - name: Upload Binary as Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: cenv-${{inputs.os-short}}
-          path: dist/cenv${{inputs.ext}}
+          name: ${{ inputs.file }}
+          path: dist/${{ inputs.file }}
 
       - name: Clean Up for UNIX systems
         if: ${{ inputs.os-short != 'windows' }}
