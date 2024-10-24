@@ -10,14 +10,11 @@ on:
 jobs:
   #----------------------------------------------------------------
   prepare:
-    name:
     runs-on: ubuntu-latest
     outputs:
       build: ${{ github.run_number }}
-      version: ${{ steps.major.outputs.version }}.${{ steps.minor.outputs.version }}.${{ steps.patch.outputs.version }}-${{ github.run_number }}
-      version_major: ${{ steps.major.outputs.version }}
-      version_minor: ${{ steps.minor.outputs.version }}
-      version_patch: ${{ steps.patch.outputs.version }}
+      version: ${{ steps.project.outputs.version }}-${{ github.run_number }}
+      name: ${{ steps.project.outputs.name }}
     steps:
       #------------------------------------------------------------
       # Checkout the repository
@@ -25,29 +22,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
       #------------------------------------------------------------
-      - name: Major version
-        id: major
-        run: echo "version=$(./utils/get.property.sh --property version.major --file ./project.properties)" >> "$GITHUB_OUTPUT"
-      #------------------------------------------------------------
-      - name: Minor version
-        id: minor
-        run: echo "version=$(./utils/get.property.sh --property version.minor --file ./project.properties)" >> "$GITHUB_OUTPUT"
-      #------------------------------------------------------------
-      - name: Patch version
-        id: patch
-        run: echo "version=$(./utils/get.property.sh --property version.patch --file ./project.properties)" >> "$GITHUB_OUTPUT"
+      - name: Project
+        id: project
+        run: |
+          echo "name=$(./scripts/get.property.sh --property name --file ./project.properties)" >> "$GITHUB_OUTPUT"
+          echo "version=$(./scripts/get.property.sh --property version --file ./project.properties)" >> "$GITHUB_OUTPUT"
+
       #------------------------------------------------------------
       - name: 📥 Info 📥
         run: |
-          VERSION_FULL=${{ steps.major.outputs.version }}.${{ steps.minor.outputs.version }}.${{ steps.patch.outputs.version }}-${{ github.run_number }}
+          VERSION_FULL=${{ steps.project.outputs.version }}-${{ github.run_number }}
           echo "---" >> $GITHUB_STEP_SUMMARY
           echo "### BUILD INFO" >> $GITHUB_STEP_SUMMARY
           echo "| Name          | Value                              |" >> $GITHUB_STEP_SUMMARY
           echo "| :------------ | :--------------------------------- |" >> $GITHUB_STEP_SUMMARY
+          echo "| project       | ${{ steps.project.outputs.name }}  |" >> $GITHUB_STEP_SUMMARY | cat
           echo "| version       | $VERSION_FULL                      |" >> $GITHUB_STEP_SUMMARY | cat
-          echo "| version_major | ${{ steps.major.outputs.version }} |" >> $GITHUB_STEP_SUMMARY | cat
-          echo "| version_minor | ${{ steps.minor.outputs.version }} |" >> $GITHUB_STEP_SUMMARY | cat
-          echo "| version_patch | ${{ steps.patch.outputs.version }} |" >> $GITHUB_STEP_SUMMARY | cat
           echo "| branch        | ${{ github.ref }}                  |" >> $GITHUB_STEP_SUMMARY | cat
           echo "| sha           | ${{ github.sha }}                  |" >> $GITHUB_STEP_SUMMARY | cat
           echo "| build         | ${{ github.run_number }}           |" >> $GITHUB_STEP_SUMMARY | cat
