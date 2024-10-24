@@ -2,9 +2,10 @@
 
 
 a = Analysis(
-    ['cenv.py', 'project.properties'],
+    ['cenv.py'],
     pathex=[],
     binaries=[],
+    datas=[('project.properties', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},

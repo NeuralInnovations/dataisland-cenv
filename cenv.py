@@ -209,6 +209,7 @@ def main():
         Environment variables: GOOGLE_CREDENTIAL_BASE64, GOOGLE_SHEET_ID, CONFIG_FILE"""
     )
     parser.add_help = True
+    parser.add_argument("--version", action="version", version=f"{project_version}")
     parser.add_argument("--google_credential_base64", required=False,
                         help="Base64 encoded Google service account credentials or use GOOGLE_CREDENTIAL_BASE64 environment variable")
     parser.add_argument("--google_sheet_id", required=False,
