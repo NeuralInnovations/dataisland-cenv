@@ -4,7 +4,7 @@
 
 macos | ubuntu
 ```bash
-curl https://raw.githubusercontent.com/NeuralInnovations/dataisland-cenv/refs/heads/master/install.sh | sh
+curl https://raw.githubusercontent.com/NeuralInnovations/dataisland-cenv/refs/heads/master/install.sh | bash
 ```
 
 ---
