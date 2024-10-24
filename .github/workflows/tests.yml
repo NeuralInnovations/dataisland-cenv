@@ -34,7 +34,7 @@ jobs:
         python cenv.py load --env local
         python cenv.py delete
       env:
-        GOOGLE_CREDENTIAL_BASE64: ${{ secrets.GOOGLE_CREDENTIAL_BASE64 }}
-        GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-        CONFIG_FILE: ${{ secrets.CONFIG_FILE }}
-        GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME }}
+        CENV_GOOGLE_CREDENTIAL_BASE64: ${{ secrets.GOOGLE_CREDENTIAL_BASE64 }}
+        CENV_GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+        CENV_STORE_CONFIG_FILE: ${{ secrets.CONFIG_FILE }}
+        CENV_GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME }}
