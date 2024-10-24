@@ -31,10 +31,10 @@ class Configs:
     SCOPES: list[str]
 
     def __init__(self):
-        self.GOOGLE_CREDENTIAL_BASE64 = os.getenv("GOOGLE_CREDENTIAL_BASE64")
-        self.GOOGLE_SHEET_ID = os.getenv("GOOGLE_SHEET_ID")
-        self.GOOGLE_SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "Env")
-        self.CONFIG_FILE = os.getenv("CONFIG_FILE", "./config.json")
+        self.GOOGLE_CREDENTIAL_BASE64 = os.getenv("CENV_GOOGLE_CREDENTIAL_BASE64")
+        self.GOOGLE_SHEET_ID = os.getenv("CENV_GOOGLE_SHEET_ID")
+        self.GOOGLE_SHEET_NAME = os.getenv("CENV_GOOGLE_SHEET_NAME", "Env")
+        self.CONFIG_FILE = os.getenv("CENV_STORE_CONFIG_FILE", "./cenv_config.json")
         self.SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
 
 
@@ -206,18 +206,18 @@ def main():
     parser = argparse.ArgumentParser(
         description=f"""Manage and search Google Sheets data.
         {project_name} {project_version}
-        Environment variables: GOOGLE_CREDENTIAL_BASE64, GOOGLE_SHEET_ID, CONFIG_FILE"""
+        Environment variables: CENV_GOOGLE_CREDENTIAL_BASE64, CENV_GOOGLE_SHEET_ID, CENV_STORE_CONFIG_FILE"""
     )
     parser.add_help = True
     parser.add_argument("--version", action="version", version=f"{project_version}")
     parser.add_argument("--google_credential_base64", required=False,
-                        help="Base64 encoded Google service account credentials or use GOOGLE_CREDENTIAL_BASE64 environment variable")
+                        help="Base64 encoded Google service account credentials or use CENV_GOOGLE_CREDENTIAL_BASE64 environment variable")
     parser.add_argument("--google_sheet_id", required=False,
-                        help="Google Sheet ID or use GOOGLE_SHEET_ID environment variable")
+                        help="Google Sheet ID or use CENV_GOOGLE_SHEET_ID environment variable")
     parser.add_argument("--google_sheet_name", required=False,
-                        help="Google Sheet name or use GOOGLE_SHEET_NAME environment variable")
+                        help="Google Sheet name or use CENV_GOOGLE_SHEET_NAME environment variable")
     parser.add_argument("--config_file", required=False,
-                        help="Local file to save the Google Sheets data or use CONFIG_FILE environment variable")
+                        help="Local file to save the Google Sheets data or use CENV_STORE_CONFIG_FILE environment variable")
 
     subparsers = parser.add_subparsers(dest="command")
 

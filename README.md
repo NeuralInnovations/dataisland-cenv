@@ -14,16 +14,16 @@ curl https://raw.githubusercontent.com/NeuralInnovations/dataisland-cenv/refs/he
 ENVIRONMENT VARIABLES
 ```bash
 # Google Credentials
-GOOGLE_CREDENTIAL_BASE64=
+CENV_GOOGLE_CREDENTIAL_BASE64=
 
 # Google Sheet File Id
-GOOGLE_SHEET_ID=
+CENV_GOOGLE_SHEET_ID=
 
 # Google Sheet Name (table)
-GOOGLE_SHEET_NAME=Env
+CENV_GOOGLE_SHEET_NAME=Env
 
 # Where to save the config file locally
-CONFIG_FILE=config.json
+CENV_STORE_CONFIG_FILE=config.json
 ```
 
 For usage, you can enter a command like this:
