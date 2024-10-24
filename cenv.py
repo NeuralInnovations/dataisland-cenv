@@ -3,6 +3,8 @@ import base64
 import json
 import os
 import configparser
+import pkgutil
+import sys
 
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
@@ -12,11 +14,33 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Function to read properties file
+def load_properties():
+    # Check if running as a PyInstaller bundle
+    if getattr(sys, 'frozen', False):
+        # Running in PyInstaller bundled mode
+        base_path = sys._MEIPASS
+        properties_path = os.path.join(base_path, 'project.properties')
+        with open(properties_path, 'r') as f:
+            return f.read()
+    else:
+        # Try loading using pkgutil if the script is part of a package
+        try:
+            data = pkgutil.get_data(__name__, 'project.properties')
+            if data:
+                return data.decode('utf-8')
+        except ValueError:
+            # If __main__ or not a package, manually load the file from the script directory
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            properties_path = os.path.join(script_dir, 'project.properties')
+            with open(properties_path, 'r') as f:
+                return f.read()
+
 # Initialize the parser
 projectProperties = configparser.ConfigParser()
 
 # Read the properties file
-projectProperties.read('project.properties')
+projectProperties.read_string(load_properties())
 
 # Access the properties
 project_name = projectProperties['DEFAULT']['name']
