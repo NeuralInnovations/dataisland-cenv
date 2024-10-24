@@ -3,12 +3,16 @@
 # Set the repository owner and name
 OWNER="NeuralInnovations"
 REPOSITORY="dataisland-cenv"
+CPU_ARCH=$(arch)
 
 # Determine the current platform
 platform=""
 if [[ "$OSTYPE" == "linux-gnu"* ]]; then
-    platform="linux"
+    platform="linux-amd64"
     install_dir="/usr/local/bin"
+    if [[ "$CPU_ARCH" == "aarch64" ]] || [[ "$CPU_ARCH" == "arm64" ]]; then
+        platform="linux-arm64"
+    fi
 elif [[ "$OSTYPE" == "darwin"* ]]; then
     platform="macos"
     install_dir="/usr/local/bin"
@@ -24,7 +28,7 @@ fi
 release_info=$(curl -s "https://api.github.com/repos/$OWNER/$REPOSITORY/releases/latest")
 
 # Determine the filename for the current platform
-filename="cenv_$platform"
+filename="cenv-$platform"
 
 # Extract the download URL for the specific platform binary
 download_url=$(echo "$release_info" | grep "browser_download_url" | grep "$filename" | cut -d '"' -f 4)
