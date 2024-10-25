@@ -35,7 +35,7 @@ jobs:
       #--------------------------------------------------------------------
       - name: Run commands (load, delete)
         run: |
-          python cenv.py load --env local
+          python cenv.py load --env unittest --sheet UnitTests
           python cenv.py delete
         env:
           CENV_GOOGLE_CREDENTIAL_BASE64: ${{ secrets.GOOGLE_CREDENTIAL_BASE64 }}
