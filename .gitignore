@@ -195,3 +195,5 @@ pyrightconfig.json
 
 /temp/
 .idea/
+.env.unittest
+.env.prod

@@ -1,0 +1,3 @@
+ENV_1=hello
+ENV_2=op://Env/$APP_ENV/Test/Value
+ENV_3=cenv://test_sheet_name/test_env/test_category/test_name

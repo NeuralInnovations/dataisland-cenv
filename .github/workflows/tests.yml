@@ -14,27 +14,31 @@ on:
 jobs:
   tests:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Checkout Repository
-      uses: actions/checkout@v4
-
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.11'
-
-    - name: Install Dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-
-    - name: Run Script
-      run: |
-        python cenv.py load --env local
-        python cenv.py delete
-      env:
-        CENV_GOOGLE_CREDENTIAL_BASE64: ${{ secrets.GOOGLE_CREDENTIAL_BASE64 }}
-        CENV_GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-        CENV_STORE_CONFIG_FILE: ${{ secrets.CONFIG_FILE }}
-        CENV_GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME }}
+      #--------------------------------------------------------------------
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+      #--------------------------------------------------------------------
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.11'
+      #--------------------------------------------------------------------
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      #--------------------------------------------------------------------
+      - name: Tests
+        run: |
+          ./scripts/tests.sh
+      #--------------------------------------------------------------------
+      - name: Run commands (load, delete)
+        run: |
+          python cenv.py load --env unittest --sheet UnitTests
+          python cenv.py delete
+        env:
+          CENV_GOOGLE_CREDENTIAL_BASE64: ${{ secrets.GOOGLE_CREDENTIAL_BASE64 }}
+          CENV_GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          CENV_STORE_CONFIG_FILE: ${{ secrets.CONFIG_FILE }}
+          CENV_GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME }}
