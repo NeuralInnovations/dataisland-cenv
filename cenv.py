@@ -66,31 +66,6 @@ class Configs:
 configs = Configs()
 
 
-def get_credentials():
-    """Handles the authentication using a service account and returns the credentials."""
-    credential_str = base64.b64decode(configs.GOOGLE_CREDENTIAL_BASE64)
-    credential_json = json.loads(credential_str)
-    creds = Credentials.from_service_account_info(credential_json, scopes=configs.SCOPES)
-
-    return creds
-
-
-def fetch_full_sheet(service, sheet_name):
-    """Fetches the entire data from the specified Google Sheets worksheet."""
-    try:
-        sheet = service.spreadsheets()
-        result = (
-            sheet.values()
-            .get(spreadsheetId=configs.GOOGLE_SHEET_ID, range=sheet_name)
-            .execute()
-        )
-        values = result.get("values", [])
-        return values
-    except HttpError as err:
-        print(err)
-        return None
-
-
 def save_to_file(data):
     """Saves the Google Sheets data to a local file."""
     delete_file()
@@ -116,11 +91,9 @@ def get_file_content():
         return None
 
 
-def load_file(sheet: str, env: str):
-    """Downloads the Google Sheets data and saves it locally."""
-    creds = get_credentials()
-    service = build("sheets", "v4", credentials=creds)
-    rows = fetch_full_sheet(service, sheet)
+def sheet_to_map(rows, sheet: str, env: str):
+    """Converts a Google Sheets worksheet to a dictionary."""
+    rows = rows.copy()
     header_row = rows.pop(0)
 
     # Define config by name of the server
@@ -162,6 +135,40 @@ def load_file(sheet: str, env: str):
         else:
             data[current_category] = category_data
 
+    return data
+
+
+def load_google_sheet(sheet_name: str) -> []:
+    """
+        Downloads the Google Sheets data and saves it locally.
+        Handles the authentication using a service account and returns the credentials.
+        """
+    # get credentials
+    credential_str = base64.b64decode(configs.GOOGLE_CREDENTIAL_BASE64)
+    credential_json = json.loads(credential_str)
+    creds = Credentials.from_service_account_info(credential_json, scopes=configs.SCOPES)
+
+    # get service
+    service = build("sheets", "v4", credentials=creds)
+
+    rows = None
+    try:
+        sheet = service.spreadsheets()
+        result = (
+            sheet.values()
+            .get(spreadsheetId=configs.GOOGLE_SHEET_ID, range=sheet_name)
+            .execute()
+        )
+        rows = result.get("values", [])
+    except HttpError as err:
+        print(err)
+        exit(1)
+    return rows
+
+
+def load_file_and_save(sheet_name: str, env: str):
+    rows = load_google_sheet(sheet_name)
+    data = sheet_to_map(rows, sheet_name, env)
     save_to_file(data)
 
 
@@ -191,7 +198,7 @@ def load_value(sheet: str, env: str, category: str, name: str) -> str:
         try_count -= 1
         need_load = False
         if not os.path.exists(configs.CONFIG_FILE):
-            load_file(sheet=sheet, env=env)
+            load_file_and_save(sheet_name=sheet, env=env)
 
         data = get_file_content()
         env_valid = "__ENV__" in data and data["__ENV__"] == env
@@ -236,7 +243,7 @@ def read_cenv_url(url: str) -> str:
 
 def load_command(sheet: str, env: str):
     """Downloads the Google Sheets data and saves it locally."""
-    load_file(sheet=sheet, env=env)
+    load_file_and_save(sheet_name=sheet, env=env)
     print(f"Data loaded and saved to {configs.CONFIG_FILE}.")
 
 
