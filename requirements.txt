@@ -6,3 +6,4 @@ pyinstaller
 setuptools
 load_dotenv
 configparser
+requests
