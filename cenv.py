@@ -5,6 +5,9 @@ import json
 import os
 import pkgutil
 import sys
+import platform
+import requests
+import subprocess
 
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
@@ -46,6 +49,76 @@ projectProperties.read_string(load_properties())
 # Access the properties
 project_name = projectProperties['DEFAULT']['name']
 project_version = projectProperties['DEFAULT']['version']
+project_owner = projectProperties['DEFAULT']['owner']
+project_repository = projectProperties['DEFAULT']['repository']
+
+update_install_dir = "/usr/local/bin" if platform.system() != "Windows" else os.path.expanduser("~\\bin")
+update_filename = f"cenv-{platform.system().lower()}-{platform.machine()}"
+
+
+def update_add_to_path_if_needed(directory):
+    """Adds the specified directory to PATH if not already included."""
+    path = os.environ["PATH"]
+    if directory not in path:
+        print(f"Adding {directory} to PATH...")
+        subprocess.call(f'setx PATH "%PATH%;{directory}"', shell=True)
+        print("You may need to restart your terminal for changes to take effect.")
+
+
+def update_ensure_directory_exists(directory):
+    """Creates the directory if it does not exist."""
+    if not os.path.exists(directory):
+        print(f"Creating directory: {directory}")
+        os.makedirs(directory)
+
+
+def update_get_latest_release_url():
+    """Fetches the latest release URL from GitHub API for the platform."""
+    api_url = f"https://api.github.com/repos/{project_owner}/{project_repository}/releases/latest"
+    response = requests.get(api_url)
+    response.raise_for_status()  # Ensure we got a valid response
+    release_info = response.json()
+    for asset in release_info["assets"]:
+        if update_filename in asset["name"]:
+            return asset["browser_download_url"]
+    return None
+
+
+def update_download_binary(url, dest_path):
+    """Downloads the binary and saves it to the destination path."""
+    response = requests.get(url, stream=True)
+    response.raise_for_status()
+    with open(dest_path, "wb") as file:
+        for chunk in response.iter_content(chunk_size=8192):
+            file.write(chunk)
+
+
+def update_cenv():
+    """Updates the cenv tool by downloading and replacing the binary."""
+
+    update_ensure_directory_exists(update_install_dir)
+
+    download_url = update_get_latest_release_url()
+    if not download_url:
+        print(f"No download URL found for platform {update_filename}. Update aborted.")
+        return
+
+    print(f"Downloading latest version of cenv from {download_url}...")
+    dest_path = os.path.join(update_install_dir, "cenv" + (".exe" if platform.system() == "Windows" else ""))
+    temp_path = dest_path + ".new"
+
+    if platform.system() == "Windows":
+        update_add_to_path_if_needed(update_install_dir)
+
+    update_download_binary(download_url, temp_path)
+
+    # Make the binary executable (if not Windows)
+    if platform.system() != "Windows":
+        os.chmod(temp_path, 0o755)
+
+    # Replace old binary with the new one
+    os.replace(temp_path, dest_path)
+    print("Update complete. You can now use the latest version of 'cenv'.")
 
 
 class Configs:
@@ -287,6 +360,7 @@ def main():
     parser = argparse.ArgumentParser(
         description=f"""Manage and search Google Sheets data.
         {project_name} {project_version}
+        https://github.com/{project_owner}/{project_repository}
         Environment variables: CENV_GOOGLE_CREDENTIAL_BASE64, CENV_GOOGLE_SHEET_ID, CENV_STORE_CONFIG_FILE"""
     )
     parser.add_help = True
@@ -304,6 +378,9 @@ def main():
 
     # Version command
     version_parser = subparsers.add_parser("version", help="Show the version of the tool")
+
+    # Update command
+    update_parser = subparsers.add_parser("update", help=f"Update {project_name} to the latest version")
 
     # Load command
     load_parser = subparsers.add_parser("load", help="Load data from Google Sheets and save it locally")
@@ -356,6 +433,8 @@ def main():
         inject_command(args.template_path)
     elif args.command == "version":
         print(f"{project_version}")
+    elif args.command == "update":
+        update_cenv()
 
 
 if __name__ == "__main__":
