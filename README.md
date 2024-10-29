@@ -4,8 +4,16 @@
 
 macos | ubuntu
 
+**BASH**
+
 ```bash
 curl https://raw.githubusercontent.com/NeuralInnovations/dataisland-cenv/refs/heads/master/install.sh | bash
+```
+
+**ZSH**
+
+```zsh
+curl https://raw.githubusercontent.com/NeuralInnovations/dataisland-cenv/refs/heads/master/install.sh | zsh
 ```
 
 ---
@@ -36,13 +44,13 @@ curl https://raw.githubusercontent.com/NeuralInnovations/dataisland-cenv/refs/he
 ENVIRONMENT VARIABLES
 
 ```bash
-# Google Credentials
+# Google Credentials (service_account json) Base64
 CENV_GOOGLE_CREDENTIAL_BASE64=
 
-# Google Sheet File Id
+# Google Sheet File Id (example https://docs.google.com/spreadsheets/d/!!!!ID_HERE!!!!/)
 CENV_GOOGLE_SHEET_ID=
 
-# Google Sheet Name (table)
+# Google Sheet Name (table sheet name)
 CENV_GOOGLE_SHEET_NAME=Env
 
 # Where to save the config file locally
