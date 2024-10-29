@@ -140,9 +140,34 @@ class Configs:
 configs = Configs()
 
 
+def normalize_path(path: str) -> str:
+    # Split the path into segments
+    parts = path.split(os.sep)
+
+    # Replace any occurrence of `~` in segments with the user home directory
+    parts = [os.path.expanduser(part) if part == "~" else part for part in parts]
+
+    # Join the parts and normalize the full path
+    normalized_path = os.path.normpath(os.path.join(*parts))
+
+    return normalized_path
+
+
 def save_to_file(data):
     """Saves the Google Sheets data to a local file."""
+
+    # Get the directory part of the path
+    directory = os.path.dirname(configs.CONFIG_FILE)
+
+    # Create the directory if it doesn't exist
+    if directory and not os.path.exists(directory):
+        os.makedirs(directory, exist_ok=True)
+
+    # Check if the file already exists
+    # Delete it if it does
     delete_file()
+
+    # Write the data to the file
     with open(configs.CONFIG_FILE, 'w') as f:
         json.dump(data, f, indent=4)
 
@@ -515,13 +540,15 @@ def main():
     configs.GOOGLE_SHEET_ID = args.google_sheet_id or configs.GOOGLE_SHEET_ID
     configs.CONFIG_FILE = args.config_file or configs.CONFIG_FILE
 
+    configs.CONFIG_FILE = normalize_path(configs.CONFIG_FILE)
+
     if configs.GOOGLE_CREDENTIAL_BASE64 is None:
         raise ValueError(
             "CENV_GOOGLE_CREDENTIAL_BASE64 environment variable or --google_credential_base64 parameter is not set. Please, see help.")
     if configs.GOOGLE_SHEET_ID is None:
         raise ValueError(
             "CENV_GOOGLE_SHEET_ID environment variable or --google_sheet_id parameter is not set. Please, see help.")
-    if configs.CONFIG_FILE is None:
+    if configs.CONFIG_FILE is None or configs.CONFIG_FILE == "." or configs.CONFIG_FILE == "":
         raise ValueError(
             "CENV_STORE_CONFIG_FILE environment variable or --config_file parameter is not set. Please, see help.")
 
