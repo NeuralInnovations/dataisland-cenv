@@ -32,9 +32,15 @@ class TestGoogleSheetProcessing(unittest.TestCase):
 
         cenv.inject_command(file_path)
         printed_output = mock_stdout.getvalue().strip()
-        self.assertEqual(printed_output, """ENV_1=hello
-ENV_2=op://Env/$APP_ENV/Test/Value
-ENV_3=test_value""")
+        self.assertEqual(printed_output.strip(), """APP_ENV=Test
+SHEET_NAME=test_sheet_name
+CATEGORY=test_category
+NAME=test_name
+ENV_NAME=test_env
+# = comment
+ENV_1=hello
+ENV_2=op://Env/Test/Test/Value
+ENV_3=test_value""".strip())
         cenv.delete_file()
 
     @patch('sys.stdout', new_callable=StringIO)

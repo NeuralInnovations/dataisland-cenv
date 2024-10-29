@@ -4,8 +4,16 @@
 
 macos | ubuntu
 
+**BASH**
+
 ```bash
 curl https://raw.githubusercontent.com/NeuralInnovations/dataisland-cenv/refs/heads/master/install.sh | bash
+```
+
+**ZSH**
+
+```zsh
+curl https://raw.githubusercontent.com/NeuralInnovations/dataisland-cenv/refs/heads/master/install.sh | zsh
 ```
 
 ---
@@ -36,13 +44,13 @@ curl https://raw.githubusercontent.com/NeuralInnovations/dataisland-cenv/refs/he
 ENVIRONMENT VARIABLES
 
 ```bash
-# Google Credentials
+# Google Credentials (service_account json) Base64
 CENV_GOOGLE_CREDENTIAL_BASE64=
 
-# Google Sheet File Id
+# Google Sheet File Id (example https://docs.google.com/spreadsheets/d/!!!!ID_HERE!!!!/)
 CENV_GOOGLE_SHEET_ID=
 
-# Google Sheet Name (table)
+# Google Sheet Name (table sheet name)
 CENV_GOOGLE_SHEET_NAME=Env
 
 # Where to save the config file locally
@@ -74,4 +82,26 @@ cenv version
 
 # delete the config file
 cenv delete
+```
+
+## Injection
+
+The inject command can resolve environment variables from the input file and print to the output.
+
+```bash
+cenv inject .env.template
+```
+
+```.env.template
+ENV_TABLE=UnitTests
+ENV_CATEGORY_NAME=Category1
+ENV_CATEGORY=$ENV_CATEGORY_NAME
+ENV_NAME=unittest
+ENV_TEST_NAME=Value2
+ENV_VALUE_NAME=$ENV_TEST_NAME
+ENV_1=hello
+ENV_2=op://Env/$APP_ENV/Database/ConnectionString
+ENV_3=cenv://$ENV_TABLE/${ENV_NAME:?error_env_not_found}/${ENV_CATEGORY}/${ENV_VALUE:-Value1}
+# support = comments
+ENV_4=cenv://$ENV_TABLE/$ENV_NAME/$ENV_CATEGORY/$ENV_VALUE_NAME
 ```
