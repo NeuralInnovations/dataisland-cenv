@@ -517,13 +517,13 @@ def main():
 
     if configs.GOOGLE_CREDENTIAL_BASE64 is None:
         raise ValueError(
-            "GOOGLE_CREDENTIAL_BASE64 environment variable or --google_credential_base64 parameter is not set. Please, see help.")
+            "CENV_GOOGLE_CREDENTIAL_BASE64 environment variable or --google_credential_base64 parameter is not set. Please, see help.")
     if configs.GOOGLE_SHEET_ID is None:
         raise ValueError(
-            "GOOGLE_SHEET_ID environment variable or --google_sheet_id parameter is not set. Please, see help.")
+            "CENV_GOOGLE_SHEET_ID environment variable or --google_sheet_id parameter is not set. Please, see help.")
     if configs.CONFIG_FILE is None:
         raise ValueError(
-            "CONFIG_FILE environment variable or --config_file parameter is not set. Please, see help.")
+            "CENV_STORE_CONFIG_FILE environment variable or --config_file parameter is not set. Please, see help.")
 
     if args.command == "load":
         load_command(sheet=args.sheet, env=args.env)
