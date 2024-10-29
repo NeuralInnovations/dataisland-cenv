@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/env bash
 
 # Set the repository owner and name
 OWNER="NeuralInnovations"

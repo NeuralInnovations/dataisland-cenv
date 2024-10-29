@@ -8,6 +8,7 @@ import sys
 import platform
 import requests
 import subprocess
+import re
 
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
@@ -342,14 +343,60 @@ def inject_command(template_path):
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"Template file '{template_path}' does not exist.")
 
+    # Regular expressions for matching various patterns
+    pattern_basic = re.compile(r'\$(\w+)')
+    pattern_braced = re.compile(r'\${(\w+)(?::-([^}]+))?(?::\?([^}]+))?}')
+
+    env_vars = {}
+
+    def resolve_value(value):
+        # Resolve patterns like $USER_NAME or ${USER_NAME}
+        def replace_var(match):
+            var_name = match.group(1)
+            return env_vars.get(var_name, os.getenv(var_name, ''))
+
+        def replace_braced_var(match):
+            var_name = match.group(1)
+            default_value = match.group(2)
+            error_message = match.group(3)
+
+            # Check if the variable exists in our env_vars or system environment
+            if var_name in env_vars:
+                return env_vars[var_name]
+            elif var_name in os.environ:
+                return os.getenv(var_name)
+            elif default_value is not None:
+                return default_value
+            elif error_message is not None:
+                raise ValueError(f"Env variable {var_name} not found: {error_message}")
+            else:
+                return ''
+
+        # Resolve basic $VAR and braced ${VAR} patterns
+        value = pattern_basic.sub(replace_var, value)
+        value = pattern_braced.sub(replace_braced_var, value)
+
+        return value
+
     output_lines = []
 
     with open(template_path, 'r') as file:
         for line in file:
             if "cenv://" in line:
                 key, cenv_url = line.strip().split("=", 1)
-                value = read_cenv_url(cenv_url)
+                key = key.strip()
+                cenv_url = cenv_url.strip()
+
+                resolved_cenv_url = resolve_value(cenv_url)
+                value = read_cenv_url(resolved_cenv_url)
+                env_vars[key] = resolved_cenv_url
                 output_lines.append(f"{key}={value}")
+            elif "=" in line and not line.strip().startswith(("#", "//", ";", '"', "'", "/*", "=")):
+                key, value = line.strip().split("=", 1)
+                key = key.strip()
+                value = value.strip()
+                env_vars[key] = resolve_value(value)
+                output_lines.append(f"{key}={env_vars[key]}")
             else:
                 output_lines.append(line.strip())
 

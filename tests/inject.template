@@ -1,3 +1,9 @@
+APP_ENV=Test
+SHEET_NAME=test_sheet_name
+CATEGORY=test_category
+NAME=test_name
+ENV_NAME=test_env
+# = comment
 ENV_1=hello
 ENV_2=op://Env/$APP_ENV/Test/Value
-ENV_3=cenv://test_sheet_name/test_env/test_category/test_name
+ENV_3=cenv://$SHEET_NAME/${ENV_NAME}/$CATEGORY/$NAME
