@@ -48,10 +48,10 @@ projectProperties = configparser.ConfigParser()
 projectProperties.read_string(load_properties())
 
 # Access the properties
-project_name = projectProperties['DEFAULT']['name']
-project_version = projectProperties['DEFAULT']['version']
-project_owner = projectProperties['DEFAULT']['owner']
-project_repository = projectProperties['DEFAULT']['repository']
+project_name = projectProperties['DEFAULT']['name'].strip(" \"\t\n\r")
+project_version = projectProperties['DEFAULT']['version'].strip(" \"\t\n\r")
+project_owner = projectProperties['DEFAULT']['owner'].strip(" \"\t\n\r")
+project_repository = projectProperties['DEFAULT']['repository'].strip(" \"\t\n\r")
 
 update_install_dir = "/usr/local/bin" if platform.system() != "Windows" else os.path.expanduser("~\\bin")
 update_filename = f"cenv-{platform.system().lower()}-{platform.machine()}"
