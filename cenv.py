@@ -312,6 +312,70 @@ def read_cenv_url(url: str) -> str:
 
 
 # ------------------------------------------------------------
+# ENV RESOLVER
+# ------------------------------------------------------------
+
+# Define patterns for matching different parts of the .env syntax
+pattern_basic = re.compile(r'\$(\w+)')
+pattern_braced = re.compile(r'\${(\w+)(?::-([^}]+))?(?::\?([^}]+))?}')
+pattern_quoted = re.compile(r'^"(.*)"$')  # Pattern for detecting quoted strings
+pattern_comment = re.compile(r'(?<!\\) #.*$')  # Pattern to match unescaped `#` for comments
+
+
+def resolve_value(env_vars, value):
+    # Check if the original value was quoted
+    is_quoted = pattern_quoted.match(value)
+
+    # Remove surrounding quotes if the value is quoted for internal processing
+    if is_quoted:
+        value = pattern_quoted.sub(r'\1', value)
+
+    # Resolve patterns like $USER_NAME or ${USER_NAME}
+    def replace_var(match):
+        var_name = match.group(1)
+        tmp_val = env_vars.get(var_name, None)
+        if tmp_val:
+            if tmp_val.startswith(('"', "'")):
+                tmp_val = tmp_val[1:]
+            if tmp_val.endswith(('"', "'")):
+                tmp_val = tmp_val[:-1]
+            return tmp_val
+        return os.getenv(var_name, '')
+
+    def replace_braced_var(match):
+        var_name = match.group(1)
+        default_value = match.group(2)
+        error_message = match.group(3)
+
+        # Check if the variable exists in our env_vars or system environment
+        if var_name in env_vars:
+            tmp_val = env_vars[var_name]
+            if tmp_val.startswith('"'):
+                tmp_val = tmp_val[1:]
+            if tmp_val.endswith('"'):
+                tmp_val = tmp_val[:-1]
+            return tmp_val
+        elif var_name in os.environ:
+            return os.getenv(var_name)
+        elif default_value is not None:
+            return default_value
+        elif error_message is not None:
+            raise ValueError(error_message)
+        else:
+            return ''
+
+    # Resolve basic $VAR and braced ${VAR} patterns within the string
+    value = pattern_basic.sub(replace_var, value)
+    value = pattern_braced.sub(replace_braced_var, value)
+
+    # If the initial value was quoted, apply quotes to the entire final resolved value
+    if is_quoted:
+        value = f'"{value}"'
+
+    return value
+
+
+# ------------------------------------------------------------
 # COMMANDS
 # ------------------------------------------------------------
 
@@ -338,67 +402,58 @@ def read_command(cenv_url: str):
     print(read_cenv_url(cenv_url))
 
 
-def inject_command(template_path):
+def inject_command(template_path: str, skip_comments: bool):
     """Processes a template file, replacing placeholders with actual data."""
     if not os.path.exists(template_path):
         raise FileNotFoundError(f"Template file '{template_path}' does not exist.")
 
-    # Regular expressions for matching various patterns
-    pattern_basic = re.compile(r'\$(\w+)')
-    pattern_braced = re.compile(r'\${(\w+)(?::-([^}]+))?(?::\?([^}]+))?}')
-
     env_vars = {}
-
-    def resolve_value(value):
-        # Resolve patterns like $USER_NAME or ${USER_NAME}
-        def replace_var(match):
-            var_name = match.group(1)
-            return env_vars.get(var_name, os.getenv(var_name, ''))
-
-        def replace_braced_var(match):
-            var_name = match.group(1)
-            default_value = match.group(2)
-            error_message = match.group(3)
-
-            # Check if the variable exists in our env_vars or system environment
-            if var_name in env_vars:
-                return env_vars[var_name]
-            elif var_name in os.environ:
-                return os.getenv(var_name)
-            elif default_value is not None:
-                return default_value
-            elif error_message is not None:
-                raise ValueError(f"Env variable {var_name} not found: {error_message}")
-            else:
-                return ''
-
-        # Resolve basic $VAR and braced ${VAR} patterns
-        value = pattern_basic.sub(replace_var, value)
-        value = pattern_braced.sub(replace_braced_var, value)
-
-        return value
 
     output_lines = []
 
+    # Regular expression to strip comments that are outside of quoted strings
+    comment_pattern = re.compile(r'(?<!\\)(?:"[^"]*"|\'[^\']*\'|[^\'"#])*?#.*$')
+    pattern_comment = re.compile(r'(?<!\\)(["\'].*?["\']|[^"\']*?)(?<!\\) #.*$')
+
+    def remove_comment(line_to_clean):
+        """
+        Remove any inline comment that starts with # outside of quoted strings.
+        """
+        # Remove the comment if it's outside of quotes
+        cleaned_line = pattern_comment.sub(r'\1', line_to_clean).strip()
+        return cleaned_line
+
     with open(template_path, 'r') as file:
         for line in file:
-            if "cenv://" in line:
-                key, cenv_url = line.strip().split("=", 1)
-                key = key.strip()
-                cenv_url = cenv_url.strip()
+            stripped_line = line.strip()
+            is_comment = stripped_line.startswith(("#", "//", ";", '"', "'", "/*", "="))
 
-                resolved_cenv_url = resolve_value(cenv_url)
-                value = read_cenv_url(resolved_cenv_url)
-                env_vars[key] = resolved_cenv_url
+            if skip_comments:
+                # Remove inline comments if they're outside of quotes
+                stripped_line = remove_comment(stripped_line)
+
+            if skip_comments and is_comment:
+                continue
+            if not is_comment and "=" in stripped_line:
+                # Remove inline comments only if they are outside of quotes
+                line_no_comment = remove_comment(stripped_line)
+
+                # Process key-value pairs
+                first, second = line_no_comment.split("=", 1)
+                key = first.strip()
+                source_value = second.strip()
+
+                # Resolve the value with your custom logic
+                value = resolve_value(env_vars, source_value)
+                if value.startswith("cenv://"):
+                    value = read_cenv_url(value)
+                env_vars[key] = value
+
+                # Add resolved key-value to output
                 output_lines.append(f"{key}={value}")
-            elif "=" in line and not line.strip().startswith(("#", "//", ";", '"', "'", "/*", "=")):
-                key, value = line.strip().split("=", 1)
-                key = key.strip()
-                value = value.strip()
-                env_vars[key] = resolve_value(value)
-                output_lines.append(f"{key}={env_vars[key]}")
             else:
-                output_lines.append(line.strip())
+                # Retain full line if it’s a comment or doesn’t contain '='
+                output_lines.append(stripped_line)
 
     print("\n".join(output_lines))
 
@@ -451,6 +506,8 @@ def main():
     # Inject command
     inject_parser = subparsers.add_parser("inject", help="Inject data from Google Sheets into a template file")
     inject_parser.add_argument("template_path", type=str, help="Path to the template file")
+    inject_parser.add_argument("--skip-comments", action='store_true', required=False, default=False,
+                               help="skip comments")
 
     args = parser.parse_args()
 
@@ -477,7 +534,7 @@ def main():
     elif args.command == "read":
         read_command(args.cenv_url)
     elif args.command == "inject":
-        inject_command(args.template_path)
+        inject_command(args.template_path, args.skip_comments)
     elif args.command == "version":
         print(f"{project_version}")
     elif args.command == "update":

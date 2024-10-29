@@ -30,7 +30,7 @@ class TestGoogleSheetProcessing(unittest.TestCase):
         if not os.path.exists(file_path):
             file_path = "./inject.template"
 
-        cenv.inject_command(file_path)
+        cenv.inject_command(file_path, False)
         printed_output = mock_stdout.getvalue().strip()
         self.assertEqual(printed_output.strip(), """APP_ENV=Test
 SHEET_NAME=test_sheet_name
