@@ -54,8 +54,7 @@ project_owner = projectProperties['DEFAULT']['owner'].strip(" \"\t\n\r")
 project_repository = projectProperties['DEFAULT']['repository'].strip(" \"\t\n\r")
 
 update_install_dir = "/usr/local/bin" if platform.system() != "Windows" else os.path.expanduser("~\\bin")
-update_filename = f"cenv-{platform.system().lower()}-{platform.machine()}"
-update_filename = "cenv-macos" if platform.system() == "Darwin" else update_filename
+update_filename = "cenv-macos" if platform.system() == "Darwin" else f"cenv-{platform.system().lower()}-{platform.machine()}"
 update_filename += ".exe" if platform.system() == "Windows" else ""
 
 
