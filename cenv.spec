@@ -5,7 +5,7 @@ a = Analysis(
     ['cenv.py'],
     pathex=[],
     binaries=[],
-    datas=[('project.properties', '.')],
+    datas=[('project.properties', '.'), ('client_secret.json', '.')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
