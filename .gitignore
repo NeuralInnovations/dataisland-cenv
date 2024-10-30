@@ -197,3 +197,4 @@ pyrightconfig.json
 .idea/
 .env.unittest
 .env.prod
+client_secret.json
