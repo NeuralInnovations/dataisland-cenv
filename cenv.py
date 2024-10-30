@@ -3,6 +3,7 @@ import base64
 import configparser
 import json
 import os
+import pickle
 import pkgutil
 import sys
 import platform
@@ -14,48 +15,71 @@ from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
+from google.oauth2.credentials import Credentials as GoogleCredentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from requests import Request
 
 load_dotenv()
 
 
 # Function to read properties file
-def load_properties():
+def load_embedded_file(path):
     # Check if running as a PyInstaller bundle
     if getattr(sys, 'frozen', False):
         # Running in PyInstaller bundled mode
         base_path = sys._MEIPASS
-        properties_path = os.path.join(base_path, 'project.properties')
+        properties_path = os.path.join(base_path, path)
         with open(properties_path, 'r') as f:
             return f.read()
     else:
         # Try loading using pkgutil if the script is part of a package
         try:
-            data = pkgutil.get_data(__name__, 'project.properties')
+            data = pkgutil.get_data(__name__, path)
             if data:
                 return data.decode('utf-8')
         except ValueError:
             # If __main__ or not a package, manually load the file from the script directory
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            properties_path = os.path.join(script_dir, 'project.properties')
+            properties_path = os.path.join(script_dir, path)
             with open(properties_path, 'r') as f:
                 return f.read()
 
 
 # Initialize the parser
-projectProperties = configparser.ConfigParser()
+project_properties = configparser.ConfigParser()
 
 # Read the properties file
-projectProperties.read_string(load_properties())
+project_properties.read_string(load_embedded_file('project.properties'))
 
 # Access the properties
-project_name = projectProperties['DEFAULT']['name'].strip(" \"\t\n\r")
-project_version = projectProperties['DEFAULT']['version'].strip(" \"\t\n\r")
-project_owner = projectProperties['DEFAULT']['owner'].strip(" \"\t\n\r")
-project_repository = projectProperties['DEFAULT']['repository'].strip(" \"\t\n\r")
+project_name = project_properties['DEFAULT']['name'].strip(" \"\t\n\r")
+project_version = project_properties['DEFAULT']['version'].strip(" \"\t\n\r")
+project_owner = project_properties['DEFAULT']['owner'].strip(" \"\t\n\r")
+project_repository = project_properties['DEFAULT']['repository'].strip(" \"\t\n\r")
 
 update_install_dir = "/usr/local/bin" if platform.system() != "Windows" else os.path.expanduser("~\\bin")
 update_filename = "cenv-macos" if platform.system() == "Darwin" else f"cenv-{platform.system().lower()}-{platform.machine()}"
 update_filename += ".exe" if platform.system() == "Windows" else ""
+
+
+def normalize_path(path: str) -> str:
+    # Split the path into segments
+    parts = path.split(os.sep)
+
+    # Replace any occurrence of `~` in segments with the user home directory
+    parts = [os.path.expanduser(part) if part == "~" else part for part in parts]
+
+    # Join the parts and normalize the full path
+    normalized_path = os.path.normpath(os.path.join(*parts))
+
+    return normalized_path
+
+
+def ensure_directory_exists(directory):
+    """Creates the directory if it does not exist."""
+    if not os.path.exists(directory):
+        print(f"Creating directory: {directory}")
+        os.makedirs(directory, exist_ok=True)
 
 
 def update_add_to_path_if_needed(directory):
@@ -65,13 +89,6 @@ def update_add_to_path_if_needed(directory):
         print(f"Adding {directory} to PATH...")
         subprocess.call(f'setx PATH "%PATH%;{directory}"', shell=True)
         print("You may need to restart your terminal for changes to take effect.")
-
-
-def update_ensure_directory_exists(directory):
-    """Creates the directory if it does not exist."""
-    if not os.path.exists(directory):
-        print(f"Creating directory: {directory}")
-        os.makedirs(directory)
 
 
 def update_get_latest_release_url():
@@ -98,7 +115,7 @@ def update_download_binary(url, dest_path):
 def update_cenv():
     """Updates the cenv tool by downloading and replacing the binary."""
 
-    update_ensure_directory_exists(update_install_dir)
+    ensure_directory_exists(update_install_dir)
 
     download_url = update_get_latest_release_url()
     if not download_url:
@@ -129,6 +146,7 @@ class Configs:
     GOOGLE_SHEET_NAME: str
     CONFIG_FILE: str
     SCOPES: list[str]
+    TOKEN_FILE: str
 
     def __init__(self):
         self.GOOGLE_CREDENTIAL_BASE64 = os.getenv("CENV_GOOGLE_CREDENTIAL_BASE64")
@@ -136,22 +154,11 @@ class Configs:
         self.GOOGLE_SHEET_NAME = os.getenv("CENV_GOOGLE_SHEET_NAME", "Env")
         self.CONFIG_FILE = os.getenv("CENV_STORE_CONFIG_FILE", "./cenv_config.json")
         self.SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
+        self.TOKEN_FILE = normalize_path("~/.cenv/.token")
+        ensure_directory_exists(os.path.dirname(self.TOKEN_FILE))
 
 
 configs = Configs()
-
-
-def normalize_path(path: str) -> str:
-    # Split the path into segments
-    parts = path.split(os.sep)
-
-    # Replace any occurrence of `~` in segments with the user home directory
-    parts = [os.path.expanduser(part) if part == "~" else part for part in parts]
-
-    # Join the parts and normalize the full path
-    normalized_path = os.path.normpath(os.path.join(*parts))
-
-    return normalized_path
 
 
 def save_to_file(data):
@@ -244,9 +251,18 @@ def load_google_sheet(sheet_name: str) -> []:
         Handles the authentication using a service account and returns the credentials.
         """
     # get credentials
-    credential_str = base64.b64decode(configs.GOOGLE_CREDENTIAL_BASE64)
-    credential_json = json.loads(credential_str)
-    creds = Credentials.from_service_account_info(credential_json, scopes=configs.SCOPES)
+
+    creds = read_google_token_creds()
+    if creds is None:
+        credential_str = base64.b64decode(configs.GOOGLE_CREDENTIAL_BASE64)
+        credential_json = json.loads(credential_str)
+        creds = Credentials.from_service_account_info(credential_json, scopes=configs.SCOPES)
+
+    if creds is None:
+        print("Failed to get Google credentials.")
+        print("Use 'cenv login' to authenticate with Google account.")
+        print("Or set service account using the CENV_GOOGLE_CREDENTIAL_BASE64 environment variable.")
+        exit(1)
 
     # get service
     service = build("sheets", "v4", credentials=creds)
@@ -404,6 +420,44 @@ def resolve_value(env_vars, value):
 # ------------------------------------------------------------
 # COMMANDS
 # ------------------------------------------------------------
+def read_google_token_creds():
+    creds = None
+    if os.path.exists(configs.TOKEN_FILE):
+        with open(configs.TOKEN_FILE, 'rb') as token:
+            creds = pickle.load(token)
+            if not creds or not creds.valid:
+                if creds and creds.expired and creds.refresh_token:
+                    creds.refresh(Request())
+                else:
+                    creds = None
+    return creds
+
+
+def google_logout_command():
+    if os.path.exists(configs.TOKEN_FILE):
+        os.remove(configs.TOKEN_FILE)
+
+
+def google_login_command():
+    creds = read_google_token_creds()
+
+    # If no valid credentials, go through OAuth flow
+    if not creds or not creds.valid:
+        if creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+        else:
+            flow = InstalledAppFlow.from_client_config(
+                json.loads(load_embedded_file('client_secret.json')),
+                scopes=["https://www.googleapis.com/auth/spreadsheets.readonly"]
+            )
+            creds = flow.run_local_server(port=0)
+
+        # Save the credentials for future runs
+        with open(configs.TOKEN_FILE, 'wb') as token:
+            pickle.dump(creds, token)
+
+    return creds
+
 
 def load_command(sheet: str, env: str):
     """Downloads the Google Sheets data and saves it locally."""
@@ -510,6 +564,12 @@ def main():
     # Update command
     update_parser = subparsers.add_parser("update", help=f"Update {project_name} to the latest version")
 
+    # Login command
+    login_parser = subparsers.add_parser("login", help="Authenticate with Google account")
+
+    # Logout command
+    logout_parser = subparsers.add_parser("logout", help="Logout from Google account")
+
     # Load command
     load_parser = subparsers.add_parser("load", help="Load data from Google Sheets and save it locally")
     load_parser.add_argument("--env", type=str, required=True, help="Environment to download")
@@ -543,30 +603,35 @@ def main():
 
     configs.CONFIG_FILE = normalize_path(configs.CONFIG_FILE)
 
-    if configs.GOOGLE_CREDENTIAL_BASE64 is None:
-        raise ValueError(
-            "CENV_GOOGLE_CREDENTIAL_BASE64 environment variable or --google_credential_base64 parameter is not set. Please, see help.")
-    if configs.GOOGLE_SHEET_ID is None:
-        raise ValueError(
-            "CENV_GOOGLE_SHEET_ID environment variable or --google_sheet_id parameter is not set. Please, see help.")
-    if configs.CONFIG_FILE is None or configs.CONFIG_FILE == "." or configs.CONFIG_FILE == "":
-        raise ValueError(
-            "CENV_STORE_CONFIG_FILE environment variable or --config_file parameter is not set. Please, see help.")
-
-    if args.command == "load":
-        load_command(sheet=args.sheet, env=args.env)
-    elif args.command == "delete":
+    if args.command == "delete":
         delete_command()
-    elif args.command == "get":
-        get_command(sheet=args.sheet, env=args.env, category=args.category, name=args.name)
-    elif args.command == "read":
-        read_command(args.cenv_url)
-    elif args.command == "inject":
-        inject_command(args.template_path, args.skip_comments)
     elif args.command == "version":
         print(f"{project_version}")
+    elif args.command == "login":
+        google_login_command()
+    elif args.command == "logout":
+        google_logout_command()
     elif args.command == "update":
         update_cenv()
+    else:
+        if configs.GOOGLE_CREDENTIAL_BASE64 is None and read_google_token_creds() is None:
+            raise ValueError(
+                "No auth. Use 'cenv login' or set CENV_GOOGLE_CREDENTIAL_BASE64 environment variable or --google_credential_base64 parameter to use service account. Please, see help.")
+        if configs.GOOGLE_SHEET_ID is None:
+            raise ValueError(
+                "CENV_GOOGLE_SHEET_ID environment variable or --google_sheet_id parameter is not set. Please, see help.")
+        if configs.CONFIG_FILE is None or configs.CONFIG_FILE == "." or configs.CONFIG_FILE == "":
+            raise ValueError(
+                "CENV_STORE_CONFIG_FILE environment variable or --config_file parameter is not set. Please, see help.")
+
+        if args.command == "load":
+            load_command(sheet=args.sheet, env=args.env)
+        elif args.command == "get":
+            get_command(sheet=args.sheet, env=args.env, category=args.category, name=args.name)
+        elif args.command == "read":
+            read_command(args.cenv_url)
+        elif args.command == "inject":
+            inject_command(args.template_path, args.skip_comments)
 
 
 if __name__ == "__main__":

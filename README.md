@@ -41,7 +41,11 @@ curl https://raw.githubusercontent.com/NeuralInnovations/dataisland-cenv/refs/he
 
 ### Requirements
 
-ENVIRONMENT VARIABLES
+1. #### Google Client Secret file (client_secret.json)
+- copy the "client_secret.json" from google console to the root of the project
+to develop and test the application
+
+2. #### ENVIRONMENT VARIABLES
 
 ```bash
 # Google Credentials (service_account json) Base64
@@ -62,6 +66,15 @@ For usage, you can enter a command like this:
 ```bash
 # help
 cenv help
+
+# login to google or use the service account by setting the environment variable CENV_GOOGLE_CREDENTIAL_BASE64 or --google_credential_base64
+cenv login
+
+# logout
+cenv logout
+
+# download the last version of the cenv
+cenv update
 
 # load the config file (optional, not necessary to use)
 cenv load --sheet Env --env dev1
