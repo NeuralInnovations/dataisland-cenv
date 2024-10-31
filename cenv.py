@@ -13,11 +13,12 @@ import re
 
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
+from google_auth_httplib2 import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2.credentials import Credentials as GoogleCredentials
 from google_auth_oauthlib.flow import InstalledAppFlow
-from requests import Request
+import httplib2
 
 load_dotenv()
 
@@ -427,7 +428,7 @@ def read_google_token_creds():
             creds = pickle.load(token)
             if not creds or not creds.valid:
                 if creds and creds.expired and creds.refresh_token:
-                    creds.refresh(Request())
+                    creds.refresh(Request(httplib2.Http()))
                 else:
                     creds = None
     return creds
@@ -444,7 +445,7 @@ def google_login_command():
     # If no valid credentials, go through OAuth flow
     if not creds or not creds.valid:
         if creds and creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+            creds.refresh(Request(httplib2.Http()))
         else:
             flow = InstalledAppFlow.from_client_config(
                 json.loads(load_embedded_file('client_secret.json')),
