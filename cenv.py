@@ -8,6 +8,7 @@ import pkgutil
 import sys
 import platform
 from enum import Enum
+from sys import exit
 
 import requests
 import subprocess
