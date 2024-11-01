@@ -11,6 +11,7 @@ import requests
 import subprocess
 import re
 
+import yaml
 from dotenv import load_dotenv
 from google.oauth2.service_account import Credentials
 from google_auth_httplib2 import Request
@@ -64,6 +65,10 @@ update_filename += ".exe" if platform.system() == "Windows" else ""
 
 
 def normalize_path(path: str) -> str:
+    path = path.strip()
+    has_slash = path.startswith("/") or path.startswith("\\")
+    prefix = "/" if has_slash else ""
+
     # Split the path into segments
     parts = path.split(os.sep)
 
@@ -71,7 +76,7 @@ def normalize_path(path: str) -> str:
     parts = [os.path.expanduser(part) if part == "~" else part for part in parts]
 
     # Join the parts and normalize the full path
-    normalized_path = os.path.normpath(os.path.join(*parts))
+    normalized_path = os.path.normpath(prefix + os.path.join(*parts))
 
     return normalized_path
 
@@ -483,6 +488,58 @@ def read_command(cenv_url: str):
     print(read_cenv_url(cenv_url))
 
 
+def status_command(fmt: str):
+    def status_msg(ok: bool):
+        return f"{'ok' if ok else 'error'}"
+
+    def check_creds():
+        try:
+            creds = read_google_token_creds()
+            if creds is None:
+                credential_str = base64.b64decode(configs.GOOGLE_CREDENTIAL_BASE64)
+                credential_json = json.loads(credential_str)
+                creds = Credentials.from_service_account_info(credential_json, scopes=configs.SCOPES)
+            return creds is not None and creds.valid
+        except Exception:
+            return False
+
+    def check_google_json_base64_file():
+        try:
+            credential_str = base64.b64decode(configs.GOOGLE_CREDENTIAL_BASE64)
+            credential_json = json.loads(credential_str)
+            return credential_json is not None
+        except Exception:
+            return False
+
+    def check_google_token_file():
+        if os.path.exists(configs.TOKEN_FILE):
+            with open(configs.TOKEN_FILE, 'rb') as token:
+                creds = pickle.load(token)
+                if not creds or not creds.valid or creds.expired:
+                    return False
+                else:
+                    return True
+        return False
+
+    status = {
+        "format": f"yaml",
+        "name": f"{project_name}",
+        "version": f"{project_version}",
+        "owner": f"{project_owner}",
+        "repository": f"{project_repository}",
+        "google_credential_base64": f"{status_msg(check_google_json_base64_file())}",
+        "google_sheet_id": f"{configs.GOOGLE_SHEET_ID}",
+        "google_sheet_name": f"{configs.GOOGLE_SHEET_NAME}",
+        "storage_config_file": f"{configs.CONFIG_FILE}",
+        "token_file": f"{status_msg(check_google_token_file())}",
+        "credentials": f"{status_msg(check_creds())}"
+    }
+    if fmt == "json":
+        print(json.dumps(status, indent=4))
+    else:
+        yaml.dump(status, sys.stdout, default_flow_style=False)
+
+
 def inject_command(template_path: str, skip_comments: bool):
     """Processes a template file, replacing placeholders with actual data."""
     if not os.path.exists(template_path):
@@ -562,6 +619,10 @@ def main():
     # Version command
     version_parser = subparsers.add_parser("version", help="Show the version of the tool")
 
+    status_parser = subparsers.add_parser("status", help="Status of the cenv tool")
+    status_parser.add_argument("--format", type=str, required=False, choices=["yaml", "json"], default="yaml",
+                               help="Output format")
+
     # Update command
     update_parser = subparsers.add_parser("update", help=f"Update {project_name} to the latest version")
 
@@ -606,6 +667,8 @@ def main():
 
     if args.command == "delete":
         delete_command()
+    elif args.command == "status":
+        status_command(args.format)
     elif args.command == "version":
         print(f"{project_version}")
     elif args.command == "login":
