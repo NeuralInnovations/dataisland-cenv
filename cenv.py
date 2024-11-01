@@ -7,6 +7,8 @@ import pickle
 import pkgutil
 import sys
 import platform
+from enum import Enum
+
 import requests
 import subprocess
 import re
@@ -17,7 +19,6 @@ from google.oauth2.service_account import Credentials
 from google_auth_httplib2 import Request
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
-from google.oauth2.credentials import Credentials as GoogleCredentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 import httplib2
 
@@ -59,8 +60,16 @@ project_version = project_properties['DEFAULT']['version'].strip(" \"\t\n\r")
 project_owner = project_properties['DEFAULT']['owner'].strip(" \"\t\n\r")
 project_repository = project_properties['DEFAULT']['repository'].strip(" \"\t\n\r")
 
+
+def get_platform_machine():
+    pl = platform.machine()
+    if pl == "x86_64":
+        return "amd64"
+    return pl.lower()
+
+
 update_install_dir = "/usr/local/bin" if platform.system() != "Windows" else os.path.expanduser("~\\bin")
-update_filename = "cenv-macos" if platform.system() == "Darwin" else f"cenv-{platform.system().lower()}-{platform.machine()}"
+update_filename = "cenv-macos" if platform.system() == "Darwin" else f"cenv-{platform.system().lower()}-{get_platform_machine()}"
 update_filename += ".exe" if platform.system() == "Windows" else ""
 
 
@@ -118,14 +127,14 @@ def update_download_binary(url, dest_path):
             file.write(chunk)
 
 
-def update_cenv():
+def update_cenv_command():
     """Updates the cenv tool by downloading and replacing the binary."""
 
     ensure_directory_exists(update_install_dir)
 
     download_url = update_get_latest_release_url()
     if not download_url:
-        print(f"No download URL found for platform {update_filename}. Update aborted.")
+        print(f"No download URL found for platform '{update_filename}', update aborted.")
         return
 
     print(f"Downloading latest version of cenv from {download_url}...")
@@ -165,6 +174,29 @@ class Configs:
 
 
 configs = Configs()
+
+
+class Base64CredentialStatus(Enum):
+    EMPTY = "empty"
+    OK = "ok"
+    INVALID = "invalid"
+    INVALID_PADDING = "invalid_padding"
+
+
+def get_base64_credentials_status(base64_credentials: str) -> Base64CredentialStatus:
+    if base64_credentials is None or base64_credentials == "":
+        return Base64CredentialStatus.EMPTY
+    try:
+        base64str = base64_credentials
+        base64str += '=' * (-len(base64str) % 4)
+        if base64str != base64_credentials:
+            return Base64CredentialStatus.INVALID_PADDING
+        credential_str = base64.b64decode(base64str)
+        credential_json = json.loads(credential_str)
+        cred = Credentials.from_service_account_info(credential_json, scopes=configs.SCOPES)
+        return Base64CredentialStatus.OK if cred is not None else Base64CredentialStatus.INVALID
+    except Exception:
+        return Base64CredentialStatus.INVALID
 
 
 def save_to_file(data):
@@ -260,8 +292,17 @@ def load_google_sheet(sheet_name: str) -> []:
 
     creds = read_google_token_creds()
     if creds is None:
-        credential_str = base64.b64decode(configs.GOOGLE_CREDENTIAL_BASE64)
-        credential_json = json.loads(credential_str)
+        credential_json = None
+        try:
+            base64str = configs.GOOGLE_CREDENTIAL_BASE64
+            base64str += '=' * (-len(base64str) % 4)
+            credential_str = base64.b64decode(base64str)
+            credential_json = json.loads(credential_str)
+        except Exception:
+            print("Failed to get Google credentials.")
+            print("Use 'cenv login' to authenticate with Google account.")
+            print("Or set service account using the CENV_GOOGLE_CREDENTIAL_BASE64 environment variable.")
+            exit(1)
         creds = Credentials.from_service_account_info(credential_json, scopes=configs.SCOPES)
 
     if creds is None:
@@ -492,24 +533,14 @@ def status_command(fmt: str):
     def status_msg(ok: bool):
         return f"{'ok' if ok else 'error'}"
 
-    def check_creds():
+    def creds_status():
         try:
             creds = read_google_token_creds()
-            if creds is None:
-                credential_str = base64.b64decode(configs.GOOGLE_CREDENTIAL_BASE64)
-                credential_json = json.loads(credential_str)
-                creds = Credentials.from_service_account_info(credential_json, scopes=configs.SCOPES)
-            return creds is not None and creds.valid
+            if creds is None or not creds.valid:
+                return get_base64_credentials_status(configs.GOOGLE_CREDENTIAL_BASE64).value
+            return "ok"
         except Exception:
-            return False
-
-    def check_google_json_base64_file():
-        try:
-            credential_str = base64.b64decode(configs.GOOGLE_CREDENTIAL_BASE64)
-            credential_json = json.loads(credential_str)
-            return credential_json is not None
-        except Exception:
-            return False
+            return "fail"
 
     def check_google_token_file():
         if os.path.exists(configs.TOKEN_FILE):
@@ -527,12 +558,12 @@ def status_command(fmt: str):
         "version": f"{project_version}",
         "owner": f"{project_owner}",
         "repository": f"{project_repository}",
-        "google_credential_base64": f"{status_msg(check_google_json_base64_file())}",
+        "google_credential_base64": f"{get_base64_credentials_status(configs.GOOGLE_CREDENTIAL_BASE64).value}",
         "google_sheet_id": f"{configs.GOOGLE_SHEET_ID}",
         "google_sheet_name": f"{configs.GOOGLE_SHEET_NAME}",
         "storage_config_file": f"{configs.CONFIG_FILE}",
         "token_file": f"{status_msg(check_google_token_file())}",
-        "credentials": f"{status_msg(check_creds())}"
+        "credentials": f"{creds_status()}"
     }
     if fmt == "json":
         print(json.dumps(status, indent=4))
@@ -676,7 +707,7 @@ def main():
     elif args.command == "logout":
         google_logout_command()
     elif args.command == "update":
-        update_cenv()
+        update_cenv_command()
     else:
         if configs.GOOGLE_CREDENTIAL_BASE64 is None and read_google_token_creds() is None:
             raise ValueError(
