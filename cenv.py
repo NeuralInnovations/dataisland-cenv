@@ -7,6 +7,7 @@ import pickle
 import pkgutil
 import sys
 import platform
+
 from enum import Enum
 from sys import exit
 
@@ -156,6 +157,12 @@ def update_cenv_command():
     print("Update complete. You can now use the latest version of 'cenv'.")
 
 
+CENV_GOOGLE_CREDENTIAL_BASE64 = "CENV_GOOGLE_CREDENTIAL_BASE64"
+CENV_GOOGLE_SHEET_ID = "CENV_GOOGLE_SHEET_ID"
+CENV_GOOGLE_SHEET_NAME = "CENV_GOOGLE_SHEET_NAME"
+CENV_STORE_CONFIG_FILE = "CENV_STORE_CONFIG_FILE"
+
+
 class Configs:
     GOOGLE_CREDENTIAL_BASE64: str
     GOOGLE_SHEET_ID: str
@@ -165,10 +172,10 @@ class Configs:
     TOKEN_FILE: str
 
     def __init__(self):
-        self.GOOGLE_CREDENTIAL_BASE64 = os.getenv("CENV_GOOGLE_CREDENTIAL_BASE64")
-        self.GOOGLE_SHEET_ID = os.getenv("CENV_GOOGLE_SHEET_ID")
-        self.GOOGLE_SHEET_NAME = os.getenv("CENV_GOOGLE_SHEET_NAME", "Env")
-        self.CONFIG_FILE = os.getenv("CENV_STORE_CONFIG_FILE", "./cenv_config.json")
+        self.GOOGLE_CREDENTIAL_BASE64 = os.getenv(CENV_GOOGLE_CREDENTIAL_BASE64)
+        self.GOOGLE_SHEET_ID = os.getenv(CENV_GOOGLE_SHEET_ID)
+        self.GOOGLE_SHEET_NAME = os.getenv(CENV_GOOGLE_SHEET_NAME, "Env")
+        self.CONFIG_FILE = os.getenv(CENV_STORE_CONFIG_FILE, "./cenv_config.json")
         self.SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
         self.TOKEN_FILE = normalize_path("~/.cenv/.token")
         ensure_directory_exists(os.path.dirname(self.TOKEN_FILE))
@@ -302,14 +309,14 @@ def load_google_sheet(sheet_name: str) -> []:
         except Exception:
             print("Failed to get Google credentials.")
             print("Use 'cenv login' to authenticate with Google account.")
-            print("Or set service account using the CENV_GOOGLE_CREDENTIAL_BASE64 environment variable.")
+            print(f"Or set service account using the {CENV_GOOGLE_CREDENTIAL_BASE64} environment variable.")
             exit(1)
         creds = Credentials.from_service_account_info(credential_json, scopes=configs.SCOPES)
 
     if creds is None:
         print("Failed to get Google credentials.")
         print("Use 'cenv login' to authenticate with Google account.")
-        print("Or set service account using the CENV_GOOGLE_CREDENTIAL_BASE64 environment variable.")
+        print(f"Or set service account using the {CENV_GOOGLE_CREDENTIAL_BASE64} environment variable.")
         exit(1)
 
     # get service
@@ -628,31 +635,57 @@ def inject_command(template_path: str, skip_comments: bool):
     print("\n".join(output_lines))
 
 
+def check_requirements():
+    if configs.GOOGLE_CREDENTIAL_BASE64 is None and read_google_token_creds() is None:
+        raise ValueError(
+            f"No auth. Use 'cenv login' or set {CENV_GOOGLE_CREDENTIAL_BASE64} environment variable or --google_credential_base64 parameter to use service account. Please, see help.")
+    if configs.GOOGLE_SHEET_ID is None:
+        raise ValueError(
+            f"{CENV_GOOGLE_SHEET_ID} environment variable or --google_sheet_id parameter is not set. Please, see help.")
+    if configs.GOOGLE_SHEET_NAME is None:
+        raise ValueError(
+            f"{CENV_GOOGLE_SHEET_NAME} environment variable or --google_sheet_name parameter is not set. Please, see help.")
+    if configs.CONFIG_FILE is None or configs.CONFIG_FILE == "." or configs.CONFIG_FILE == "":
+        raise ValueError(
+            f"{CENV_STORE_CONFIG_FILE} environment variable or --config_file parameter is not set. Please, see help.")
+
+
+def token_generate_command():
+    check_requirements()
+    str_to_encode = f"{configs.GOOGLE_CREDENTIAL_BASE64}.{configs.GOOGLE_SHEET_ID}.{configs.GOOGLE_SHEET_NAME}.{configs.CONFIG_FILE}"
+    print(base64.b64encode(str_to_encode.encode()).decode())
+
+
 def main():
     parser = argparse.ArgumentParser(
         description=f"""Manage and search Google Sheets data.
         {project_name} {project_version}
-        https://github.com/{project_owner}/{project_repository}
-        Environment variables: CENV_GOOGLE_CREDENTIAL_BASE64, CENV_GOOGLE_SHEET_ID, CENV_STORE_CONFIG_FILE"""
+        https://github.com/{project_owner}/{project_repository}.
+        Environment variables: 
+        [{CENV_GOOGLE_CREDENTIAL_BASE64},
+        {CENV_GOOGLE_SHEET_ID}, 
+        {CENV_GOOGLE_SHEET_NAME}, 
+        {CENV_STORE_CONFIG_FILE}]"""
     )
     parser.add_help = True
-    parser.add_argument("--version", action="version", version=f"{project_version}")
-    parser.add_argument("--google_credential_base64", required=False,
-                        help="Base64 encoded Google service account credentials or use CENV_GOOGLE_CREDENTIAL_BASE64 environment variable")
-    parser.add_argument("--google_sheet_id", required=False,
-                        help="Google Sheet ID or use CENV_GOOGLE_SHEET_ID environment variable")
-    parser.add_argument("--google_sheet_name", required=False,
-                        help="Google Sheet name or use CENV_GOOGLE_SHEET_NAME environment variable")
-    parser.add_argument("--config_file", required=False,
-                        help="Local file to save the Google Sheets data or use CENV_STORE_CONFIG_FILE environment variable")
+    parser.add_argument("--version", "-v", action="version", version=f"{project_version}")
+    parser.add_argument("--google_credential_base64", "--google-credential-base64", required=False,
+                        help=f"Base64 encoded Google service account credentials or use {CENV_GOOGLE_CREDENTIAL_BASE64} environment variable")
+    parser.add_argument("--google_sheet_id", "--google-sheet-id", required=False,
+                        help=f"Google Sheet ID or use {CENV_GOOGLE_SHEET_ID} environment variable")
+    parser.add_argument("--google_sheet_name", "--google-sheet-name", required=False,
+                        help=f"Google Sheet name or use {CENV_GOOGLE_SHEET_NAME} environment variable")
+    parser.add_argument("--config_file", "--config-file", required=False,
+                        help=f"Local file to save the Google Sheets data or use {CENV_STORE_CONFIG_FILE} environment variable")
 
     subparsers = parser.add_subparsers(dest="command")
 
     # Version command
-    version_parser = subparsers.add_parser("version", help="Show the version of the tool")
+    version_parser = subparsers.add_parser("version", aliases=["v"], help="Show the version of the tool")
 
-    status_parser = subparsers.add_parser("status", help="Status of the cenv tool")
-    status_parser.add_argument("--format", type=str, required=False, choices=["yaml", "json"], default="yaml",
+    status_parser = subparsers.add_parser("status", aliases=["s"], help="Status of the cenv tool")
+    status_parser.add_argument("--format", "-f", type=str, required=False, choices=["yaml", "json"],
+                               default="yaml",
                                help="Output format")
 
     # Update command
@@ -665,29 +698,35 @@ def main():
     logout_parser = subparsers.add_parser("logout", help="Logout from Google account")
 
     # Load command
-    load_parser = subparsers.add_parser("load", help="Load data from Google Sheets and save it locally")
-    load_parser.add_argument("--env", type=str, required=True, help="Environment to download")
-    load_parser.add_argument("--sheet", type=str, required=True, help="Sheet name")
+    load_parser = subparsers.add_parser("load", aliases=["l"], help="Load data from Google Sheets and save it locally")
+    load_parser.add_argument("--env", "-e", type=str, required=True, help="Environment to download")
+    load_parser.add_argument("--sheet", "-s", type=str, required=True, help="Sheet name")
 
     # Delete command
-    delete_parser = subparsers.add_parser("delete", help="Delete the locally saved data")
+    delete_parser = subparsers.add_parser("delete", aliases=["d"], help="Delete the locally saved data")
 
     # Find command
-    find_parser = subparsers.add_parser("get", help="Get a specific value in the loaded data")
-    find_parser.add_argument("--sheet", type=str, required=True, help="Sheet name")
-    find_parser.add_argument("--env", type=str, required=True, help="Environment column")
-    find_parser.add_argument("--category", type=str, required=True, help="Category")
-    find_parser.add_argument("--name", type=str, required=True, help="Name")
+    find_parser = subparsers.add_parser("get", aliases=["g"], help="Get a specific value in the loaded data")
+    find_parser.add_argument("--sheet", "-s", type=str, required=True, help="Sheet name")
+    find_parser.add_argument("--env", "-e", type=str, required=True, help="Environment column")
+    find_parser.add_argument("--category", "-c", type=str, required=True, help="Category")
+    find_parser.add_argument("--name", "-n", type=str, required=True, help="Name")
 
     # Read command
-    read_parser = subparsers.add_parser("read", help="Read value from Google Sheets using cenv URL")
+    read_parser = subparsers.add_parser("read", aliases=["r"], help="Read value from Google Sheets using cenv URL")
     read_parser.add_argument("cenv_url", type=str, help="cenv URL in the format cenv://SHEET/ENV/CATEGORY/NAME")
 
     # Inject command
-    inject_parser = subparsers.add_parser("inject", help="Inject data from Google Sheets into a template file")
+    inject_parser = subparsers.add_parser("inject", aliases=["i"],
+                                          help="Inject data from Google Sheets into a template file")
     inject_parser.add_argument("template_path", type=str, help="Path to the template file")
-    inject_parser.add_argument("--skip-comments", action='store_true', required=False, default=False,
+    inject_parser.add_argument("--skip-comments", "-sc", action='store_true', required=False, default=False,
                                help="skip comments")
+
+    service_token_parser = subparsers.add_parser("token", help="Token commands")
+    service_token_commands = service_token_parser.add_subparsers(dest="token_command", title="commands")
+    service_token_commands.add_parser("generate",
+                                      help=f"Generate service token, base64({CENV_GOOGLE_CREDENTIAL_BASE64}.{CENV_GOOGLE_SHEET_ID}.{CENV_GOOGLE_SHEET_NAME}.{CENV_STORE_CONFIG_FILE})")
 
     args = parser.parse_args()
 
@@ -710,15 +749,7 @@ def main():
     elif args.command == "update":
         update_cenv_command()
     else:
-        if configs.GOOGLE_CREDENTIAL_BASE64 is None and read_google_token_creds() is None:
-            raise ValueError(
-                "No auth. Use 'cenv login' or set CENV_GOOGLE_CREDENTIAL_BASE64 environment variable or --google_credential_base64 parameter to use service account. Please, see help.")
-        if configs.GOOGLE_SHEET_ID is None:
-            raise ValueError(
-                "CENV_GOOGLE_SHEET_ID environment variable or --google_sheet_id parameter is not set. Please, see help.")
-        if configs.CONFIG_FILE is None or configs.CONFIG_FILE == "." or configs.CONFIG_FILE == "":
-            raise ValueError(
-                "CENV_STORE_CONFIG_FILE environment variable or --config_file parameter is not set. Please, see help.")
+        check_requirements()
 
         if args.command == "load":
             load_command(sheet=args.sheet, env=args.env)
@@ -728,6 +759,9 @@ def main():
             read_command(args.cenv_url)
         elif args.command == "inject":
             inject_command(args.template_path, args.skip_comments)
+        elif args.command == "token":
+            if args.token_command == "generate":
+                token_generate_command()
 
 
 if __name__ == "__main__":
