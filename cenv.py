@@ -389,7 +389,7 @@ def read_cenv_url(url: str) -> str:
     parts = url[7:].split("/", 3)
 
     if len(parts) != 4:
-        raise ValueError("Invalid cenv URL format. Must be 'cenv://SHEET/ENV/CATEGORY/NAME'.")
+        raise ValueError(f"Invalid cenv URL format. Expect: 'cenv://SHEET/ENV/CATEGORY/NAME', got: {url}")
 
     sheet, env, category, name = parts
 
