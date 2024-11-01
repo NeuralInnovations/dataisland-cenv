@@ -7,3 +7,4 @@ setuptools
 load_dotenv
 configparser
 requests
+PyYAML
