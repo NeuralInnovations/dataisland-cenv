@@ -11,6 +11,12 @@ on:
       - master
       - develop
 
+env:
+  CENV_GOOGLE_CREDENTIAL_BASE64: ${{ secrets.GOOGLE_CREDENTIAL_BASE64 }}
+  CENV_GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+  CENV_STORE_CONFIG_FILE: ${{ secrets.CONFIG_FILE }}
+  CENV_GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME }}
+
 jobs:
   tests:
     runs-on: ubuntu-latest
@@ -37,8 +43,3 @@ jobs:
         run: |
           python cenv.py load --env unittest --sheet UnitTests
           python cenv.py delete
-        env:
-          CENV_GOOGLE_CREDENTIAL_BASE64: ${{ secrets.GOOGLE_CREDENTIAL_BASE64 }}
-          CENV_GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
-          CENV_STORE_CONFIG_FILE: ${{ secrets.CONFIG_FILE }}
-          CENV_GOOGLE_SHEET_NAME: ${{ secrets.GOOGLE_SHEET_NAME }}

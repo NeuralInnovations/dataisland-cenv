@@ -3,6 +3,7 @@ from io import StringIO
 from unittest.mock import patch
 import os
 import cenv
+from cenv import Token, configs
 
 # Sample data for testing
 SAMPLE_GOOGLE_SHEET_ID = "test_sheet_id"
@@ -74,6 +75,26 @@ ENV_3=test_value""".strip())
         printed_output = mock_stdout.getvalue().strip()
         self.assertEqual(printed_output, SAMPLE_VALUE)
         cenv.delete_file()
+
+    @patch('sys.stdout', new_callable=StringIO)
+    def test_token_encode_decode(self, mock_stdout):
+        token = Token(
+            configs.GOOGLE_CREDENTIAL_BASE64,
+            configs.GOOGLE_SHEET_ID,
+            configs.GOOGLE_SHEET_NAME,
+            configs.CONFIG_FILE
+        )
+        encoded = cenv.token_encode(token)
+        decoded = cenv.token_decode(encoded)
+
+        self.assertEqual(token.google_cred_base64, decoded.google_cred_base64)
+        self.assertEqual(token.google_sheet_id, decoded.google_sheet_id)
+        self.assertEqual(token.google_sheet_name, decoded.google_sheet_name)
+        self.assertEqual(token.store_config_file, decoded.store_config_file)
+
+        cenv.token_generate_command()
+        printed_output = mock_stdout.getvalue().strip()
+        self.assertEqual(printed_output, encoded)
 
 
 if __name__ == "__main__":
