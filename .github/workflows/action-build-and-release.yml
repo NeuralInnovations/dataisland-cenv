@@ -8,7 +8,7 @@ on:
       ext:
         required: true
         type: string
-      os-short:
+      os_name:
         required: true
         type: string
       os:
@@ -26,7 +26,7 @@ jobs:
       # -----------------------------------------------------------
       - name: 📋 Info 📋
         run: |
-          echo "Running for ${{ inputs.os-short }}"
+          echo "Running for ${{ inputs.os_name }}"
 
       - name: Checkout code
         uses: actions/checkout@v4
@@ -57,9 +57,9 @@ jobs:
           path: dist/${{ inputs.file }}
 
       - name: Clean Up for UNIX systems
-        if: ${{ inputs.os-short != 'windows' }}
+        if: ${{ inputs.os_name != 'windows' }}
         run: rm -rf build, dist
 
       - name: Clean Up for Windows system
-        if: ${{ inputs.os-short == 'windows' }}
+        if: ${{ inputs.os_name == 'windows' }}
         run: Remove-Item -Recurse -Force build, dist

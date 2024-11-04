@@ -7,6 +7,7 @@ import pickle
 import pkgutil
 import sys
 import platform
+import zlib
 
 from enum import Enum
 from sys import exit
@@ -71,7 +72,7 @@ def get_platform_machine():
 
 
 update_install_dir = "/usr/local/bin" if platform.system() != "Windows" else os.path.expanduser("~\\bin")
-update_filename = "cenv-macos" if platform.system() == "Darwin" else f"cenv-{platform.system().lower()}-{get_platform_machine()}"
+update_filename = f"cenv-{platform.system().lower()}-{get_platform_machine()}"
 update_filename += ".exe" if platform.system() == "Windows" else ""
 
 
@@ -157,10 +158,57 @@ def update_cenv_command():
     print("Update complete. You can now use the latest version of 'cenv'.")
 
 
-CENV_GOOGLE_CREDENTIAL_BASE64 = "CENV_GOOGLE_CREDENTIAL_BASE64"
-CENV_GOOGLE_SHEET_ID = "CENV_GOOGLE_SHEET_ID"
-CENV_GOOGLE_SHEET_NAME = "CENV_GOOGLE_SHEET_NAME"
-CENV_STORE_CONFIG_FILE = "CENV_STORE_CONFIG_FILE"
+class Token:
+    google_cred_base64: str | None
+    google_sheet_id: str | None
+    google_sheet_name: str | None
+    store_config_file: str | None
+
+    def __init__(self, google_cred_base64: str | None, google_sheet_id: str | None, google_sheet_name: str | None,
+                 store_config_file: str | None):
+        self.google_cred_base64 = google_cred_base64
+        self.google_sheet_id = google_sheet_id
+        self.google_sheet_name = google_sheet_name
+        self.store_config_file = store_config_file
+
+
+def to_base64(s: str) -> str:
+    return base64.b64encode(s.encode()).decode()
+
+
+def from_base64(s: str) -> str:
+    return base64.b64decode(s).decode()
+
+
+def token_encode(token: Token) -> str:
+    items = [
+        to_base64(token.google_cred_base64),
+        to_base64(token.google_sheet_id),
+        to_base64(token.google_sheet_name),
+        to_base64(token.store_config_file)
+    ]
+    str_to_encode = ".".join(items)
+    compressed = str_to_encode.encode()  # zlib.compress(str_to_encode.encode())
+    return base64.b64encode(compressed).decode()
+
+
+def token_decode(token: str) -> Token | None:
+    decoded = base64.b64decode(token)
+    decompressed = decoded.decode()  # zlib.decompress(decoded).decode()
+    google_cred_base64, google_sheet_id, google_sheet_name, store_config_file = decompressed.split(".")
+    return Token(
+        from_base64(google_cred_base64),
+        from_base64(google_sheet_id),
+        from_base64(google_sheet_name),
+        from_base64(store_config_file)
+    )
+
+
+ENV_CENV_GOOGLE_CREDENTIAL_BASE64 = "CENV_GOOGLE_CREDENTIAL_BASE64"
+ENV_CENV_GOOGLE_SHEET_ID = "CENV_GOOGLE_SHEET_ID"
+ENV_CENV_GOOGLE_SHEET_NAME = "CENV_GOOGLE_SHEET_NAME"
+ENV_CENV_STORE_CONFIG_FILE = "CENV_STORE_CONFIG_FILE"
+ENV_CENV_TOKEN = "CENV_TOKEN"
 
 
 class Configs:
@@ -169,16 +217,21 @@ class Configs:
     GOOGLE_SHEET_NAME: str
     CONFIG_FILE: str
     SCOPES: list[str]
-    TOKEN_FILE: str
+    USER_TOKEN_FILE: str
+    TOKEN_VALUE: str
 
     def __init__(self):
-        self.GOOGLE_CREDENTIAL_BASE64 = os.getenv(CENV_GOOGLE_CREDENTIAL_BASE64)
-        self.GOOGLE_SHEET_ID = os.getenv(CENV_GOOGLE_SHEET_ID)
-        self.GOOGLE_SHEET_NAME = os.getenv(CENV_GOOGLE_SHEET_NAME, "Env")
-        self.CONFIG_FILE = os.getenv(CENV_STORE_CONFIG_FILE, "./cenv_config.json")
+        cenv_token_str = os.getenv(ENV_CENV_TOKEN)
+        token = Token(None, None, None, None)
+        if cenv_token_str:
+            token = token_decode(cenv_token_str)
+        self.GOOGLE_CREDENTIAL_BASE64 = os.getenv(ENV_CENV_GOOGLE_CREDENTIAL_BASE64, token.google_cred_base64)
+        self.GOOGLE_SHEET_ID = os.getenv(ENV_CENV_GOOGLE_SHEET_ID, token.google_sheet_id)
+        self.GOOGLE_SHEET_NAME = os.getenv(ENV_CENV_GOOGLE_SHEET_NAME, token.google_sheet_name or "Env")
+        self.CONFIG_FILE = os.getenv(ENV_CENV_STORE_CONFIG_FILE, token.store_config_file or "./cenv_config.json")
         self.SCOPES = ["https://www.googleapis.com/auth/spreadsheets.readonly"]
-        self.TOKEN_FILE = normalize_path("~/.cenv/.token")
-        ensure_directory_exists(os.path.dirname(self.TOKEN_FILE))
+        self.USER_TOKEN_FILE = normalize_path("~/.cenv/.token")
+        ensure_directory_exists(os.path.dirname(self.USER_TOKEN_FILE))
 
 
 configs = Configs()
@@ -309,14 +362,14 @@ def load_google_sheet(sheet_name: str) -> []:
         except Exception:
             print("Failed to get Google credentials.")
             print("Use 'cenv login' to authenticate with Google account.")
-            print(f"Or set service account using the {CENV_GOOGLE_CREDENTIAL_BASE64} environment variable.")
+            print(f"Or set service account using the {ENV_CENV_GOOGLE_CREDENTIAL_BASE64} environment variable.")
             exit(1)
         creds = Credentials.from_service_account_info(credential_json, scopes=configs.SCOPES)
 
     if creds is None:
         print("Failed to get Google credentials.")
         print("Use 'cenv login' to authenticate with Google account.")
-        print(f"Or set service account using the {CENV_GOOGLE_CREDENTIAL_BASE64} environment variable.")
+        print(f"Or set service account using the {ENV_CENV_GOOGLE_CREDENTIAL_BASE64} environment variable.")
         exit(1)
 
     # get service
@@ -477,8 +530,8 @@ def resolve_value(env_vars, value):
 # ------------------------------------------------------------
 def read_google_token_creds():
     creds = None
-    if os.path.exists(configs.TOKEN_FILE):
-        with open(configs.TOKEN_FILE, 'rb') as token:
+    if os.path.exists(configs.USER_TOKEN_FILE):
+        with open(configs.USER_TOKEN_FILE, 'rb') as token:
             creds = pickle.load(token)
             if not creds or not creds.valid:
                 if creds and creds.expired and creds.refresh_token:
@@ -489,8 +542,8 @@ def read_google_token_creds():
 
 
 def google_logout_command():
-    if os.path.exists(configs.TOKEN_FILE):
-        os.remove(configs.TOKEN_FILE)
+    if os.path.exists(configs.USER_TOKEN_FILE):
+        os.remove(configs.USER_TOKEN_FILE)
 
 
 def google_login_command():
@@ -508,7 +561,7 @@ def google_login_command():
             creds = flow.run_local_server(port=0)
 
         # Save the credentials for future runs
-        with open(configs.TOKEN_FILE, 'wb') as token:
+        with open(configs.USER_TOKEN_FILE, 'wb') as token:
             pickle.dump(creds, token)
 
     return creds
@@ -551,8 +604,8 @@ def status_command(fmt: str):
             return "fail"
 
     def check_google_token_file():
-        if os.path.exists(configs.TOKEN_FILE):
-            with open(configs.TOKEN_FILE, 'rb') as token:
+        if os.path.exists(configs.USER_TOKEN_FILE):
+            with open(configs.USER_TOKEN_FILE, 'rb') as token:
                 creds = pickle.load(token)
                 if not creds or not creds.valid or creds.expired:
                     return False
@@ -638,22 +691,28 @@ def inject_command(template_path: str, skip_comments: bool):
 def check_requirements():
     if configs.GOOGLE_CREDENTIAL_BASE64 is None and read_google_token_creds() is None:
         raise ValueError(
-            f"No auth. Use 'cenv login' or set {CENV_GOOGLE_CREDENTIAL_BASE64} environment variable or --google_credential_base64 parameter to use service account. Please, see help.")
+            f"No auth. Use 'cenv login' or set {ENV_CENV_GOOGLE_CREDENTIAL_BASE64} environment variable or --google_credential_base64 parameter to use service account. Please, see help.")
     if configs.GOOGLE_SHEET_ID is None:
         raise ValueError(
-            f"{CENV_GOOGLE_SHEET_ID} environment variable or --google_sheet_id parameter is not set. Please, see help.")
+            f"{ENV_CENV_GOOGLE_SHEET_ID} environment variable or --google_sheet_id parameter is not set. Please, see help.")
     if configs.GOOGLE_SHEET_NAME is None:
         raise ValueError(
-            f"{CENV_GOOGLE_SHEET_NAME} environment variable or --google_sheet_name parameter is not set. Please, see help.")
+            f"{ENV_CENV_GOOGLE_SHEET_NAME} environment variable or --google_sheet_name parameter is not set. Please, see help.")
     if configs.CONFIG_FILE is None or configs.CONFIG_FILE == "." or configs.CONFIG_FILE == "":
         raise ValueError(
-            f"{CENV_STORE_CONFIG_FILE} environment variable or --config_file parameter is not set. Please, see help.")
+            f"{ENV_CENV_STORE_CONFIG_FILE} environment variable or --config_file parameter is not set. Please, see help.")
 
 
 def token_generate_command():
     check_requirements()
-    str_to_encode = f"{configs.GOOGLE_CREDENTIAL_BASE64}.{configs.GOOGLE_SHEET_ID}.{configs.GOOGLE_SHEET_NAME}.{configs.CONFIG_FILE}"
-    print(base64.b64encode(str_to_encode.encode()).decode())
+    str_to_encode = token_encode(
+        Token(
+            configs.GOOGLE_CREDENTIAL_BASE64,
+            configs.GOOGLE_SHEET_ID,
+            configs.GOOGLE_SHEET_NAME,
+            configs.CONFIG_FILE
+        ))
+    print(str_to_encode)
 
 
 def main():
@@ -662,21 +721,25 @@ def main():
         {project_name} {project_version}
         https://github.com/{project_owner}/{project_repository}.
         Environment variables: 
-        [{CENV_GOOGLE_CREDENTIAL_BASE64},
-        {CENV_GOOGLE_SHEET_ID}, 
-        {CENV_GOOGLE_SHEET_NAME}, 
-        {CENV_STORE_CONFIG_FILE}]"""
+        [{ENV_CENV_GOOGLE_CREDENTIAL_BASE64},
+        {ENV_CENV_GOOGLE_SHEET_ID}, 
+        {ENV_CENV_GOOGLE_SHEET_NAME}, 
+        {ENV_CENV_STORE_CONFIG_FILE},
+        or use {ENV_CENV_TOKEN}
+        ]"""
     )
     parser.add_help = True
     parser.add_argument("--version", "-v", action="version", version=f"{project_version}")
+    parser.add_argument("--token", required=False,
+                        help=f"The combination of {ENV_CENV_GOOGLE_CREDENTIAL_BASE64},{ENV_CENV_GOOGLE_SHEET_ID},{ENV_CENV_GOOGLE_SHEET_NAME},{ENV_CENV_STORE_CONFIG_FILE} or use {ENV_CENV_TOKEN} environment variable")
     parser.add_argument("--google_credential_base64", "--google-credential-base64", required=False,
-                        help=f"Base64 encoded Google service account credentials or use {CENV_GOOGLE_CREDENTIAL_BASE64} environment variable")
+                        help=f"Base64 encoded Google service account credentials or use {ENV_CENV_GOOGLE_CREDENTIAL_BASE64} environment variable, override {ENV_CENV_TOKEN}")
     parser.add_argument("--google_sheet_id", "--google-sheet-id", required=False,
-                        help=f"Google Sheet ID or use {CENV_GOOGLE_SHEET_ID} environment variable")
+                        help=f"Google Sheet ID or use {ENV_CENV_GOOGLE_SHEET_ID} environment variable, override {ENV_CENV_TOKEN}")
     parser.add_argument("--google_sheet_name", "--google-sheet-name", required=False,
-                        help=f"Google Sheet name or use {CENV_GOOGLE_SHEET_NAME} environment variable")
+                        help=f"Google Sheet name or use {ENV_CENV_GOOGLE_SHEET_NAME} environment variable, override {ENV_CENV_TOKEN}")
     parser.add_argument("--config_file", "--config-file", required=False,
-                        help=f"Local file to save the Google Sheets data or use {CENV_STORE_CONFIG_FILE} environment variable")
+                        help=f"Local file to save the Google Sheets data or use {ENV_CENV_STORE_CONFIG_FILE} environment variable, override {ENV_CENV_TOKEN}")
 
     subparsers = parser.add_subparsers(dest="command")
 
@@ -726,9 +789,16 @@ def main():
     service_token_parser = subparsers.add_parser("token", help="Token commands")
     service_token_commands = service_token_parser.add_subparsers(dest="token_command", title="commands")
     service_token_commands.add_parser("generate",
-                                      help=f"Generate service token, base64({CENV_GOOGLE_CREDENTIAL_BASE64}.{CENV_GOOGLE_SHEET_ID}.{CENV_GOOGLE_SHEET_NAME}.{CENV_STORE_CONFIG_FILE})")
+                                      help=f"Generate service token, base64({ENV_CENV_GOOGLE_CREDENTIAL_BASE64}.{ENV_CENV_GOOGLE_SHEET_ID}.{ENV_CENV_GOOGLE_SHEET_NAME}.{ENV_CENV_STORE_CONFIG_FILE})")
 
     args = parser.parse_args()
+
+    if args.token:
+        tkn = token_decode(args.token)
+        configs.GOOGLE_CREDENTIAL_BASE64 = tkn.google_cred_base64
+        configs.GOOGLE_SHEET_ID = tkn.google_sheet_id
+        configs.GOOGLE_SHEET_NAME = tkn.google_sheet_name
+        configs.CONFIG_FILE = tkn.store_config_file
 
     configs.GOOGLE_CREDENTIAL_BASE64 = args.google_credential_base64 or configs.GOOGLE_CREDENTIAL_BASE64
     configs.GOOGLE_SHEET_ID = args.google_sheet_id or configs.GOOGLE_SHEET_ID

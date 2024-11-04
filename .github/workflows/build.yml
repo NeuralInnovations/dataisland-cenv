@@ -50,7 +50,7 @@ jobs:
     uses: ./.github/workflows/action-build-and-release.yml
     with:
       file: cenv-linux-arm64
-      os-short: linux
+      os_name: linux
       os: ubuntu-22.04-arm64
       ext: ""
     secrets: inherit
@@ -62,7 +62,7 @@ jobs:
     uses: ./.github/workflows/action-build-and-release.yml
     with:
       file: cenv-linux-amd64
-      os-short: linux
+      os_name: linux
       os: ubuntu-22.04
       ext: ""
     secrets: inherit
@@ -74,20 +74,32 @@ jobs:
     uses: ./.github/workflows/action-build-and-release.yml
     with:
       file: cenv-windows.exe
-      os-short: windows
+      os_name: windows
       os: windows-latest
       ext: ".exe"
     secrets: inherit
   #----------------------------------------------------------------
-  build_macos:
-    name: 🧱 Build For MacOS 🧱
+  build_darwin_arm64:
+    name: 🧱 Build For Darwin arm64 🧱
     needs:
       - prepare
     uses: ./.github/workflows/action-build-and-release.yml
     with:
-      file: cenv-macos
-      os-short: macos
-      os: macos-latest
+      file: cenv-darwin-amd64
+      os_name: darwin-amd64
+      os: macos-14
+      ext: ""
+    secrets: inherit
+  #----------------------------------------------------------------
+  build_darwin_amd64:
+    name: 🧱 Build For Darwin amd64 🧱
+    needs:
+      - prepare
+    uses: ./.github/workflows/action-build-and-release.yml
+    with:
+      file: cenv-darwin-amd64
+      os_name: darwin-amd64
+      os: macos-13
       ext: ""
     secrets: inherit
   #----------------------------------------------------------------
@@ -98,7 +110,8 @@ jobs:
       - build_linux_amd64
       - build_linux_arm64
       - build_windows
-      - build_macos
+      - build_darwin_arm64
+      - build_darwin_amd64
     runs-on: ubuntu-latest
     steps:
       #----------------------------------------------------------------
@@ -120,11 +133,17 @@ jobs:
           name: cenv-windows.exe
           path: build/windows/
       #----------------------------------------------------------------
-      - name: Download MacOS Binary
+      - name: Download Darwin ARM64 Binary
         uses: actions/download-artifact@v4
         with:
-          name: cenv-macos
-          path: build/macos/
+          name: cenv-darwin-arm64
+          path: build/darwin/
+      #----------------------------------------------------------------
+      - name: Download Darwin AMD64 Binary
+        uses: actions/download-artifact@v4
+        with:
+          name: cenv-darwin-amd64
+          path: build/darwin/
       #----------------------------------------------------------------
       - name: Create GitHub Release
         id: create_release
@@ -169,12 +188,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       #----------------------------------------------------------------
-      - name: Upload MacOS Binary to Release
+      - name: Upload Darwin ARM64 Binary to Release
         uses: actions/upload-release-asset@v1
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: build/macos/cenv-macos
-          asset_name: cenv-macos
+          asset_path: build/darwin/cenv-darwin-arm64
+          asset_name: cenv-darwin-arm64
+          asset_content_type: application/octet-stream
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #----------------------------------------------------------------
+      - name: Upload Darwin AMD64 Binary to Release
+        uses: actions/upload-release-asset@v1
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: build/darwin/cenv-darwin-amd64
+          asset_name: cenv-darwin-amd64
           asset_content_type: application/octet-stream
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
