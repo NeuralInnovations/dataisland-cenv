@@ -85,8 +85,8 @@ jobs:
       - prepare
     uses: ./.github/workflows/action-build-and-release.yml
     with:
-      file: cenv-darwin-amd64
-      os_name: darwin-amd64
+      file: cenv-darwin-arm64
+      os_name: darwin-arm64
       os: macos-14
       ext: ""
     secrets: inherit

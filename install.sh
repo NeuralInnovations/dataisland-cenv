@@ -14,8 +14,11 @@ if [[ "$OSTYPE" == "linux-gnu"* ]]; then
         platform="linux-arm64"
     fi
 elif [[ "$OSTYPE" == "darwin"* ]]; then
-    platform="macos"
+    platform="darwin-amd64"
     install_dir="/usr/local/bin"
+    if [[ "$CPU_ARCH" == "aarch64" ]] || [[ "$CPU_ARCH" == "arm64" ]]; then
+        platform="darwin-arm64"
+    fi
 elif [[ "$OSTYPE" == "msys"* || "$OSTYPE" == "cygwin"* || "$OSTYPE" == "win32" ]]; then
     platform="windows"
     install_dir="$HOME/bin"
