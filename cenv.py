@@ -164,8 +164,12 @@ class Token:
     google_sheet_name: str | None
     store_config_file: str | None
 
-    def __init__(self, google_cred_base64: str | None, google_sheet_id: str | None, google_sheet_name: str | None,
-                 store_config_file: str | None):
+    def __init__(self,
+                 google_cred_base64: str | None,
+                 google_sheet_id: str | None,
+                 google_sheet_name: str | None,
+                 store_config_file: str | None
+                 ):
         self.google_cred_base64 = google_cred_base64
         self.google_sheet_id = google_sheet_id
         self.google_sheet_name = google_sheet_name
@@ -675,8 +679,14 @@ def inject_command(template_path: str, skip_comments: bool):
 
                 # Resolve the value with your custom logic
                 value = resolve_value(env_vars, source_value)
-                if value.startswith("cenv://"):
+                if value.startswith(("cenv://", "\"cenv://", "'cenv://")):
+                    has_q = False
+                    if value.startswith(("\"", "'")):
+                        value = value[1:-1]
+                        has_q = True
                     value = read_cenv_url(value)
+                    if has_q:
+                        value = f'"{value}"'
                 env_vars[key] = value
 
                 # Add resolved key-value to output
